@@ -28,4 +28,8 @@ public class TransferHistory {
 
     @Column(nullable = false)
     private LocalDateTime transferredAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private TransferStatus status;
 }
