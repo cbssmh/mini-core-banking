@@ -1,213 +1,235 @@
 # 🏦 Mini Core Banking System
 
-Spring Boot 기반의 미니 계정계(Core Banking) 프로젝트입니다.  
-단순 CRUD 수준이 아니라, **계좌 이체의 정합성, 거래 상태 관리, 예외 처리, 동시성 제어**를 중심으로 설계했습니다.
+A Spring Boot–based mini core banking system designed to go beyond simple CRUD operations.  
+This project focuses on transactional consistency, state management, exception handling, and concurrency control in financial operations.
 
 ---
 
-## 🚀 프로젝트 개요
+## 🚀 Overview
 
-이 프로젝트는 계정계 시스템의 핵심 개념을 직접 구현하며 학습하기 위해 만들었습니다.
+This project was built to implement and deeply understand the core concepts of a banking system.
 
-주요 설계 목표:
-
-- 계좌 생성 / 조회 / 이체 기능 구현
-- `@Transactional` 기반 이체 정합성 보장
-- 전역 예외 처리 구조 적용
-- 이체 내역 기록 및 조회
-- 비즈니스 규칙 검증
-- 동시성 문제 인식 및 비관적 락 적용
-- 상태 기반 거래 흐름(`PENDING`, `SUCCESS`, `FAILED`) 설계
+### Key Objectives
+- Implement account creation, retrieval, and transfer features  
+- Ensure transactional consistency using `@Transactional`  
+- Apply a global exception handling mechanism  
+- Record and query transfer histories  
+- Enforce business rules and validations  
+- Handle concurrency with pessimistic locking  
+- Design a state-driven transaction flow (`PENDING`, `SUCCESS`, `FAILED`)  
 
 ---
 
 ## 🛠 Tech Stack
 
-- Java 21
-- Spring Boot
-- Spring Data JPA
-- MySQL
-- Lombok
-- Gradle
+- Java 21  
+- Spring Boot  
+- Spring Data JPA  
+- MySQL  
+- Lombok  
+- Gradle  
 
 ---
 
-## ✨ 주요 기능
+## ✨ Features
 
-### 계좌 관리
-- 계좌 생성
-- 계좌 전체 조회
-- 계좌 단건 조회
-- 계좌번호 중복 검사
+### Account Management
+- Create account  
+- Retrieve all accounts  
+- Retrieve account by ID  
+- Validate duplicate account numbers  
 
-### 계좌 이체
-- 계좌 간 금액 이체
-- `@Transactional` 기반 처리
-- 자기 자신에게 이체 금지
-- 0원 이하 이체 금지
-- 잔액 부족 검증
+### Money Transfer
+- Transfer funds between accounts  
+- Transactional processing with `@Transactional`  
+- Prevent self-transfer  
+- Reject zero or negative amounts  
+- Validate sufficient balance  
 
-### 이체 이력 관리
-- 전체 이체 내역 조회
-- 특정 계좌 기준 이체 내역 조회
-- 이체 상태 관리
-    - `PENDING`
-    - `SUCCESS`
-    - `FAILED`
+### Transfer History
+- Retrieve all transfer records  
+- Retrieve transfer history by account  
+- Manage transfer states:  
+  - `PENDING`  
+  - `SUCCESS`  
+  - `FAILED`  
 
-### 예외 처리
-- `CustomException`
-- `GlobalExceptionHandler`
-- 일관된 JSON 에러 응답 반환
+### Exception Handling
+- Custom exception (`CustomException`)  
+- Centralized error handling (`GlobalExceptionHandler`)  
+- Consistent JSON error responses  
 
-### 동시성 대응
-- JPA 비관적 락(`PESSIMISTIC_WRITE`) 적용
-- 이체 시 동일 계좌 동시 접근으로 인한 잔액 정합성 문제 완화
-
----
-
-## 🧱 시스템 구조
-
-    Controller → Service → Repository
-
-    Client
-      ↓
-    Controller (요청/응답 처리)
-      ↓
-    Service (비즈니스 로직, 트랜잭션)
-      ↓
-    Repository (DB 접근)
-      ↓
-    MySQL
+### Concurrency Control
+- Applied JPA pessimistic locking (`PESSIMISTIC_WRITE`)  
+- Mitigates balance inconsistency under concurrent access  
 
 ---
 
-## 📁 프로젝트 구조
+## 🧱 Architecture
 
-    src/main/java/com/minibank/mini_core_banking
-    ├── domain
-    │   └── account
-    │       ├── controller
-    │       ├── dto
-    │       ├── exception
-    │       ├── history
-    │       │   ├── controller
-    │       │   ├── repository
-    │       │   ├── TransferHistory.java
-    │       │   └── TransferStatus.java
-    │       ├── repository
-    │       ├── service
-    │       └── Account.java
-    └── global
-        └── GlobalExceptionHandler.java
+```
+Controller → Service → Repository
+
+Client
+  ↓
+Controller (Request/Response handling)
+  ↓
+Service (Business logic & transactions)
+  ↓
+Repository (Database access)
+  ↓
+MySQL
+```
+
+---
+
+## 📁 Project Structure
+
+```
+src/main/java/com/minibank/mini_core_banking
+├── domain
+│   └── account
+│       ├── controller
+│       ├── dto
+│       ├── exception
+│       ├── history
+│       │   ├── controller
+│       │   ├── repository
+│       │   ├── TransferHistory.java
+│       │   └── TransferStatus.java
+│       ├── repository
+│       ├── service
+│       └── Account.java
+└── global
+    └── GlobalExceptionHandler.java
+```
 
 ---
 
 ## 🔌 API
 
 ### Account API
-    POST /accounts
-    GET /accounts
-    GET /accounts/{id}
+```
+POST /accounts
+GET /accounts
+GET /accounts/{id}
+```
 
 ### Transfer API
-    POST /accounts/transfer
+```
+POST /accounts/transfer
+```
 
 ### Transfer History API
-    GET /transfers
-    GET /transfers/account/{accountId}
+```
+GET /transfers
+GET /transfers/account/{accountId}
+```
 
 ---
 
-## 💾 데이터베이스
+## 💾 Database Schema
 
 ### account
-- id
-- account_number
-- balance
-- owner_name
+- id  
+- account_number  
+- balance  
+- owner_name  
 
 ### transfer_history
-- id
-- from_account_id
-- to_account_id
-- amount
-- transferred_at
-- status
+- id  
+- from_account_id  
+- to_account_id  
+- amount  
+- transferred_at  
+- status  
 
 ---
 
-## ⚙️ 실행 방법
+## ⚙️ Getting Started
 
-### 1. MySQL에서 DB 생성
-    CREATE DATABASE minibank;
+### 1. Create Database
+```sql
+CREATE DATABASE minibank;
+```
 
-### 2. application.yml 설정
-    spring:
-      datasource:
-        url: jdbc:mysql://localhost:3306/minibank
-        username: root
-        password: your_password
+### 2. Configure application.yml
+```yaml
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/minibank
+    username: root
+    password: your_password
+```
 
-### 3. 프로젝트 실행
-    ./gradlew bootRun
-
----
-
-## 🧪 테스트 예시
-
-### 계좌 생성
-    POST http://localhost:8080/accounts
-    Content-Type: application/json
-
-    {
-      "accountNumber": "111-222-333",
-      "balance": 100000,
-      "ownerName": "kim"
-    }
-
-### 계좌 이체
-    POST http://localhost:8080/accounts/transfer
-    Content-Type: application/json
-
-    {
-      "fromAccountId": 1,
-      "toAccountId": 2,
-      "amount": 5000
-    }
-
-### 전체 이체 내역 조회
-    GET http://localhost:8080/transfers
+### 3. Run the Application
+```bash
+./gradlew bootRun
+```
 
 ---
 
-## 🔥 핵심 설계 포인트
+## 🧪 Example Requests
 
-### 1. 트랜잭션 정합성
-이체는 출금, 입금, 이력 저장이 하나의 흐름으로 묶이는 작업이므로 `@Transactional`을 적용했습니다.
+### Create Account
+```http
+POST http://localhost:8080/accounts
+Content-Type: application/json
 
-### 2. 거래 상태 관리
-이체를 즉시 완료 처리하지 않고 `PENDING → SUCCESS / FAILED` 상태 흐름으로 관리하는 방향으로 설계했습니다.
+{
+  "accountNumber": "111-222-333",
+  "balance": 100000,
+  "ownerName": "kim"
+}
+```
 
-### 3. 전역 예외 처리
-`CustomException`과 `GlobalExceptionHandler`를 사용해 에러를 일관된 JSON 형태로 반환했습니다.
+### Transfer Money
+```http
+POST http://localhost:8080/accounts/transfer
+Content-Type: application/json
 
-### 4. 동시성 제어
-동일 계좌에 대한 동시 이체 요청으로 인해 잔액 검증이 깨질 수 있는 문제를 고려해 비관적 락(`PESSIMISTIC_WRITE`)을 적용했습니다.
+{
+  "fromAccountId": 1,
+  "toAccountId": 2,
+  "amount": 5000
+}
+```
+
+### Get Transfer History
+```http
+GET http://localhost:8080/transfers
+```
 
 ---
 
-## 📌 개선 가능 포인트
+## 🔥 Key Design Decisions
 
-- 데드락 방지를 위한 락 순서 통일
-- 트랜잭션 분리를 통한 실패 상태 영속화 고도화
-- Swagger/OpenAPI 문서화
-- 인증/인가(JWT) 추가
-- 테스트 코드 작성
+### 1. Transactional Consistency
+Transfers involve withdrawal, deposit, and history recording as a single atomic operation, handled using `@Transactional`.
+
+### 2. State-Based Transaction Flow
+Instead of treating transfers as instantly completed, the system models them with explicit states:  
+`PENDING → SUCCESS / FAILED`
+
+### 3. Centralized Exception Handling
+Errors are handled through `CustomException` and `GlobalExceptionHandler`, ensuring consistent JSON responses.
+
+### 4. Concurrency Control
+To prevent race conditions on balance updates, pessimistic locking (`PESSIMISTIC_WRITE`) is applied.
+
+---
+
+## 📌 Future Improvements
+
+- Enforce consistent lock ordering to prevent deadlocks  
+- Improve failure-state persistence via transaction separation  
+- Add Swagger / OpenAPI documentation  
+- Implement authentication & authorization (JWT)  
+- Write comprehensive test cases  
 
 ---
 
 ## 👨‍💻 Author
 
-Backend Developer 지향  
-계정계 / 데이터 정합성 / 트랜잭션 / 시스템 설계 중심 학습
+Aspiring Backend Developer  
+Focused on core banking systems, data consistency, transactions, and system design
