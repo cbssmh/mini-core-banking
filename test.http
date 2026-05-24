@@ -1,0 +1,74 @@
+POST http://localhost:8080/accounts
+Content-Type: application/json
+
+{
+  "accountNumber": "111-222-334",
+  "balance": 100000,
+  "ownerName": "seo"
+}
+
+###
+
+GET http://localhost:8080/accounts
+###
+GET http://localhost:8080/accounts/1
+###
+POST http://localhost:8080/accounts/transfer
+Content-Type: application/json
+
+{
+  "fromAccountId": 1,
+  "toAccountId": 3,
+  "amount": 5000
+}
+###
+POST http://localhost:8080/accounts/transfer
+Content-Type: application/json
+
+{
+  "fromAccountId": 1,
+  "toAccountId": 3,
+  "amount": 99999999
+}
+
+###
+GET http://localhost:8080/transfers
+###
+GET http://localhost:8080/transfers/account/1
+###
+POST http://localhost:8080/accounts/transfer
+Content-Type: application/json
+
+{
+  "fromAccountId": 1,
+  "toAccountId": 1,
+  "amount": 1000
+}
+###
+POST http://localhost:8080/accounts/transfer
+Content-Type: application/json
+
+{
+  "fromAccountId": 1,
+  "toAccountId": 3,
+  "amount": 0
+}
+
+###
+POST http://localhost:8080/accounts/transfer
+Content-Type: application/json
+
+{
+  "fromAccountId": 1,
+  "toAccountId": 3,
+  "amount": -1000
+}
+###
+POST http://localhost:8080/accounts
+Content-Type: application/json
+
+{
+"accountNumber": "111-222-999",
+"balance": 50000,
+"ownerName": "kim"
+}

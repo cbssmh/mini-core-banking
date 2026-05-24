@@ -1,0 +1,40 @@
+# Build outputs
+build/
+out/
+target/
+
+# Gradle
+.gradle/
+
+# IDE metadata
+.idea/
+.vscode/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment and local configuration
+.env
+application-local.yml
+application-dev.yml
+application-secret.yml
+
+# Local database files
+*.db
+*.sqlite
+*.sqlite3
+*.h2.db
+*.mv.db
+
+# Generated test reports and caches
+test-output/
+surefire-reports/
+failsafe-reports/
+build/reports/
+build/test-results/
