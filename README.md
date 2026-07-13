@@ -1,359 +1,242 @@
-# Mini Core Banking v1
+# Mini Core Banking v2
 
 ## Overview
 
-Mini Core Banking v1 is a small Java and Spring Boot backend prototype for learning and verifying account APIs, balance transfer flow, JPA persistence, database transactions, and pessimistic locking.
+Mini Core Banking v2 is a Spring Boot backend project for verifying a reliable account transfer flow.
 
-This project is not a real banking system and is not production-ready. It is a learning-focused backend prototype that demonstrates a minimal money-transfer workflow and documents its current technical limits.
+v2.0 focuses on PostgreSQL persistence, Flyway-managed schema, transaction boundary, pessimistic locking, deterministic lock ordering, idempotency, integration tests, Docker Compose runtime, and CI verification.
 
-## Project Scope
+This project is not a real banking system.
 
-Included in v1:
+## Architecture
 
-- Account creation
-- Account query
-- Balance transfer
-- Transfer history
-- Transaction boundary
-- Pessimistic locking
-- Request validation
-- Custom exception handling
+The application uses a layered Spring Boot structure.
 
-Not included in v1:
-
-- Authentication
-- Authorization
-- Idempotency
-- Ledger
-- Concurrency guarantee
-- Deadlock handling
-- Observability
-- Database migration
-- Production deployment
+| Layer | Responsibility |
+| --- | --- |
+| Controller | Exposes account and transfer HTTP APIs. |
+| Application Service | Owns transfer transaction boundary, idempotency check, lock ordering, and transfer orchestration. |
+| Entity | Maps the Flyway-managed database schema. |
+| Repository | Provides JPA persistence access and pessimistic lock query. |
+| Database | Stores accounts and transfer history in PostgreSQL. |
 
 ## Tech Stack
 
 | Area | Technology |
-|---|---|
+| --- | --- |
 | Language | Java 21 |
 | Framework | Spring Boot 4.0.4 |
-| Web | Spring Web |
 | Persistence | Spring Data JPA |
-| Database | MySQL 8.4.10 |
-| Build | Gradle 9.4.0 |
+| Database | PostgreSQL 17 |
+| Migration | Flyway |
+| Tests | JUnit, Spring Boot Test, Testcontainers PostgreSQL |
+| Build | Gradle |
+| Runtime | Docker Compose |
+| CI | GitHub Actions |
 
-## Architecture
+## Key Features
 
-The project uses a simple Spring Boot layered structure.
-
-| Component | Responsibility |
-|---|---|
-| Controller | Exposes HTTP APIs and maps request bodies to DTOs |
-| Service | Applies validation, transaction boundary, transfer orchestration, and business rules |
-| Repository | Provides database access through Spring Data JPA |
-| Entity | Maps account and transfer history tables |
-| DTO | Defines request and response payloads |
-| Exception Handler | Converts custom business exceptions into JSON error responses |
-
-Main package structure:
-
-```text
-src/main/java/com/minibank/mini_core_banking
-├── domain
-│   └── account
-│       ├── controller
-│       ├── dto
-│       ├── exception
-│       ├── history
-│       ├── repository
-│       ├── service
-│       └── Account.java
-└── global
-    └── GlobalExceptionHandler.java
-```
+- Account creation
+- Account query
+- Transfer
+- Transfer history query
+- PostgreSQL schema managed by Flyway
+- Hibernate `ddl-auto=none`
+- Transfer transaction boundary
+- Pessimistic account locking
+- Deterministic lock ordering by account id
+- Transfer idempotency key
+- PostgreSQL Testcontainers integration tests
 
 ## Transfer Flow
 
-Current successful transfer flow:
-
 ```text
 HTTP request
-  -> request-level validation
-  -> create PENDING history
-  -> lock source account
-  -> lock destination account
-  -> validate balance
-  -> debit source
-  -> credit destination
-  -> mark SUCCESS
+  -> request validation
+  -> idempotency key lock
+  -> existing idempotency key lookup
+  -> create PENDING transfer history
+  -> lock accounts by ascending account id
+  -> check source balance
+  -> debit source account
+  -> credit target account
+  -> mark transfer history SUCCESS
   -> commit
 ```
 
-All of the transfer processing above runs inside a single transaction boundary in `AccountService.transfer()`.
+If account lookup, balance check, validation, or database work fails, the transaction rolls back. v2.0 does not persist independent FAILED transfer rows.
 
-If an exception occurs after the transaction starts, the whole transaction is rolled back. This means failed transfer attempts currently do not leave a transfer history row. The `FAILED` enum value exists, but independent failed-history persistence is not implemented in v1.
+## Idempotency
 
-## Implemented Features
+The transfer API requires `idempotencyKey` in the JSON body.
 
-The following features were manually verified:
+Same key and same request:
 
-- Account creation
-- Account list
-- Account detail
-- Transfer
-- Transfer history list
-- Account-specific transfer history
-- Self-transfer validation
-- Non-positive amount validation
-- Pessimistic locking
-- Rollback on insufficient balance
-- SUCCESS history persistence
+- returns the existing transfer result
+- does not move money again
 
-## API Examples
+Same key and different request:
 
-### Create Account
+- returns a conflict-style business error
+- does not move money
+
+The database enforces a unique constraint on `transfer_history.idempotency_key`.
+
+## Concurrency Strategy
+
+Transfers lock both account rows with JPA `PESSIMISTIC_WRITE`.
+
+Account ids are sorted in ascending order before lock acquisition. This reduces deadlock risk when opposite-direction transfers access the same account pair.
+
+This strategy does not claim that all deadlocks are impossible.
+
+## Testing
+
+Repository and transfer integration tests use PostgreSQL Testcontainers.
+
+Verified test coverage includes:
+
+- Account save and lookup
+- Unique account number constraint
+- Transfer history save
+- Foreign key enforcement
+- Successful transfer
+- Balance updates
+- Total amount invariant
+- Insufficient balance rollback
+- Self-transfer rejection
+- Missing account rollback
+- Idempotency replay
+- Idempotency conflict
+- Lock ordering structure
+- Concurrent same-key transfer request
+
+Run:
+
+```bash
+./gradlew clean test
+```
+
+## Docker
+
+Docker Compose includes:
+
+- `postgres`
+- `app`
+- bridge network
+- PostgreSQL volume
+- PostgreSQL healthcheck
+- app startup after PostgreSQL health
+
+The app service runs the local Gradle-built jar. Build the jar before starting Docker Compose.
+
+PostgreSQL is exposed on host port `5433` to avoid conflicting with a local database already using `5432`.
+
+## CI
+
+GitHub Actions runs:
+
+```text
+checkout
+setup Java 21
+start PostgreSQL service
+start application for Flyway migration
+run Testcontainers tests
+build
+success
+```
+
+Deploy is not included.
+
+## How to Run
+
+Run tests:
+
+```bash
+./gradlew clean test
+```
+
+Build:
+
+```bash
+./gradlew build
+```
+
+Run with Docker Compose:
+
+```bash
+docker compose up
+```
+
+Stop:
+
+```bash
+docker compose down
+```
+
+Remove the PostgreSQL volume when a clean local database is required:
+
+```bash
+docker compose down -v
+```
+
+## Verification
+
+Create two accounts:
 
 ```bash
 curl -X POST http://localhost:8080/accounts \
   -H "Content-Type: application/json" \
-  -d '{
-    "accountNumber": "111-222-333",
-    "balance": 100000,
-    "ownerName": "kim"
-  }'
+  -d '{"accountNumber":"v2-001","ownerName":"Alice","balance":10000}'
+
+curl -X POST http://localhost:8080/accounts \
+  -H "Content-Type: application/json" \
+  -d '{"accountNumber":"v2-002","ownerName":"Bob","balance":5000}'
 ```
 
-Example response:
+Transfer:
+
+```bash
+curl -X POST http://localhost:8080/accounts/transfer \
+  -H "Content-Type: application/json" \
+  -d '{"fromAccountId":1,"toAccountId":2,"amount":1000,"idempotencyKey":"demo-key-001"}'
+```
+
+Expected response shape:
 
 ```json
 {
-  "id": 1,
-  "accountNumber": "111-222-333",
-  "balance": 100000,
-  "ownerName": "kim"
+  "transferId": 1,
+  "status": "SUCCESS",
+  "idempotencyKey": "demo-key-001"
 }
 ```
 
-### Get Accounts
+Replay the same request with the same `idempotencyKey`. The same transfer result should be returned and balances should not change again.
+
+Check accounts:
 
 ```bash
 curl http://localhost:8080/accounts
 ```
 
-Example response:
-
-```json
-[
-  {
-    "id": 1,
-    "accountNumber": "111-222-333",
-    "balance": 100000,
-    "ownerName": "kim"
-  }
-]
-```
-
-### Get Account Detail
-
-```bash
-curl http://localhost:8080/accounts/1
-```
-
-Example response:
-
-```json
-{
-  "id": 1,
-  "accountNumber": "111-222-333",
-  "balance": 100000,
-  "ownerName": "kim"
-}
-```
-
-### Transfer
-
-```bash
-curl -X POST http://localhost:8080/accounts/transfer \
-  -H "Content-Type: application/json" \
-  -d '{
-    "fromAccountId": 1,
-    "toAccountId": 2,
-    "amount": 5000
-  }'
-```
-
-Example success response:
-
-```text
-OK
-```
-
-Example business error response:
-
-```json
-{
-  "message": "잔액 부족"
-}
-```
-
-### Get Transfer History
-
-```bash
-curl http://localhost:8080/transfers
-```
-
-Example response:
-
-```json
-[
-  {
-    "id": 8,
-    "fromAccountId": 3,
-    "toAccountId": 4,
-    "amount": 10000,
-    "transferredAt": "2026-07-13T14:14:31.531312",
-    "status": "SUCCESS"
-  }
-]
-```
-
-### Get Transfer History by Account
-
-```bash
-curl http://localhost:8080/transfers/account/3
-```
-
-Example response:
-
-```json
-[
-  {
-    "id": 8,
-    "fromAccountId": 3,
-    "toAccountId": 4,
-    "amount": 10000,
-    "transferredAt": "2026-07-13T14:14:31.531312",
-    "status": "SUCCESS"
-  }
-]
-```
-
-## How to Run
-
-Prerequisites:
-
-- Java 21
-- Docker
-- MySQL container
-
-MySQL command used for verification:
-
-```bash
-docker run --name mini-core-banking-mysql \
-  -e MYSQL_DATABASE=minibank \
-  -e MYSQL_ALLOW_EMPTY_PASSWORD=yes \
-  -p 3306:3306 \
-  -d mysql:8.4
-```
-
-The empty root password is only for local learning and manual verification. Do not use this setting in an operational environment.
-
-Run the application:
-
-```bash
-./gradlew clean test
-./gradlew build
-./gradlew bootRun
-```
-
-## Verification Results
-
-| Scenario | Result |
-|---|---|
-| Account creation | Passed |
-| Successful transfer | Passed |
-| Balance conservation | Passed |
-| Insufficient balance rollback | Passed |
-| Self-transfer rejection | Passed |
-| Pessimistic lock query | Observed |
-| Duplicate request protection | Not implemented |
-
-Manual verification data:
-
-| Item | Value |
-|---|---|
-| Account 3 initial balance | 100000 |
-| Account 4 initial balance | 10000 |
-| Successful transfer history | id `8`, amount `10000`, status `SUCCESS` |
-| Repeated request history | id `10`, amount `5000`, status `SUCCESS` |
-| Repeated request history | id `11`, amount `5000`, status `SUCCESS` |
-| Account 3 final balance | 80000 |
-| Account 4 final balance | 30000 |
-
-Balance invariant:
-
-```text
-100000 + 10000 = 80000 + 30000 = 110000
-```
-
-The repeated request verification used the same `5000` transfer request twice. Because idempotency is not implemented, both requests were processed and two `SUCCESS` history rows were created.
-
-History id `9` was not present after verification. This is consistent with a failed transaction consuming a MySQL auto-increment value while the row itself was rolled back.
-
 ## Known Limitations
 
-- No idempotency
-- No deterministic lock ordering
-- No concurrency integration test
-- No deadlock handling or retry
-- No FAILED persistence
-- No immutable ledger
-- No authentication or authorization
-- No migration tool
-- External MySQL is required
-- Only minimal automated test coverage
-- `spring.jpa.open-in-view` warning is present
-- Not production-ready
+- FAILED transfer persistence is not implemented in v2.0.
+- Audit metadata is not implemented.
+- Error codes are not structured.
+- Request ID propagation is not implemented.
+- Reconciliation helper is not implemented.
+- There is no authentication or authorization.
+- There is no ledger model.
+- There is no observability stack.
 
-The `FAILED` enum exists in the code, but failed transfer attempts currently roll back the transaction, so a failed transfer row is not independently persisted in v1.
+## Roadmap
 
-## Learning Outcomes
+v2.1 focuses on:
 
-This project documents and verifies the following learning points:
-
-- Spring proxy transaction boundary
-- Same-bean self-invocation problem
-- Pessimistic locks require an active transaction
-- Relationship between rollback and history persistence
-- MySQL auto-increment values may not be rolled back
-- Why idempotency is needed for retry-safe transfer APIs
-- Why deterministic lock ordering is needed for stronger concurrency handling
-
-## Version History
-
-### v1.0.0
-
-- Account APIs
-- Working transfer flow
-- Transaction boundary fix
-- Pessimistic lock verification
-- Rollback verification
-- Documented limitations
-
-## v2 Roadmap
-
-The following items are intentionally deferred to v2:
-
-- Testcontainers
-- Flyway
-- PostgreSQL
-- Idempotency key
-- Deterministic lock ordering
-- Concurrency tests
-- FAILED persistence strategy
-- Docker Compose
-- GitHub Actions
-- Actuator
-- Micrometer
-- Prometheus
-- Grafana
+- FAILED persistence
+- Audit metadata
+- Error codes
+- Request ID
+- Reconciliation helper

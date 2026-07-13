@@ -6,6 +6,14 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
+@Table(
+        name = "transfer_history",
+        indexes = {
+                @Index(name = "idx_transfer_history_from_account_id", columnList = "from_account_id"),
+                @Index(name = "idx_transfer_history_to_account_id", columnList = "to_account_id"),
+                @Index(name = "idx_transfer_history_transferred_at", columnList = "transferred_at")
+        }
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -17,19 +25,22 @@ public class TransferHistory {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(name = "from_account_id", nullable = false)
     private Long fromAccountId;
 
-    @Column(nullable = false)
+    @Column(name = "to_account_id", nullable = false)
     private Long toAccountId;
 
     @Column(nullable = false)
     private Long amount;
 
-    @Column(nullable = false)
-    private LocalDateTime transferredAt;
+    @Column(name = "idempotency_key", length = 128)
+    private String idempotencyKey;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 32)
     private TransferStatus status;
+
+    @Column(name = "transferred_at", nullable = false)
+    private LocalDateTime transferredAt;
 }

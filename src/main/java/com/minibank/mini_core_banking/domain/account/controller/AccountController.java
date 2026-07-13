@@ -4,7 +4,9 @@ import com.minibank.mini_core_banking.domain.account.Account;
 import com.minibank.mini_core_banking.domain.account.dto.AccountResponse;
 import com.minibank.mini_core_banking.domain.account.dto.CreateAccountRequest;
 import com.minibank.mini_core_banking.domain.account.dto.TransferRequest;
+import com.minibank.mini_core_banking.domain.account.dto.TransferResponse;
 import com.minibank.mini_core_banking.domain.account.service.AccountService;
+import com.minibank.mini_core_banking.domain.account.service.TransferApplicationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +20,7 @@ import java.util.stream.Collectors;
 public class AccountController {
 
     private final AccountService accountService;
+    private final TransferApplicationService transferApplicationService;
 
     @PostMapping
     public AccountResponse createAccount(@Valid @RequestBody CreateAccountRequest request) {
@@ -39,12 +42,7 @@ public class AccountController {
     }
 
     @PostMapping("/transfer")
-    public String transfer(@RequestBody TransferRequest request) {
-        accountService.transfer(
-                request.getFromAccountId(),
-                request.getToAccountId(),
-                request.getAmount()
-        );
-        return "OK";
+    public TransferResponse transfer(@Valid @RequestBody TransferRequest request) {
+        return transferApplicationService.transfer(request);
     }
 }
