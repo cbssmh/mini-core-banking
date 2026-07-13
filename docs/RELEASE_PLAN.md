@@ -34,10 +34,10 @@ Each release must satisfy its Definition of Done before the next release begins.
 # v2.1 Done
 
 - FAILED transfer attempts are persisted.
-- Error code policy is defined and applied.
-- Audit metadata is captured.
-- Request ID is available for tracing transfer attempts.
-- Reconciliation helper supports operational review.
+- Error code policy is defined and applied to API errors.
+- Audit metadata is captured on transfer history.
+- Request ID is available in response headers, error bodies, and transfer history.
+- Reconciliation helper supports operational review of failed transfers.
 - Failure-path tests pass.
 - Documentation is updated.
 - Release is created.

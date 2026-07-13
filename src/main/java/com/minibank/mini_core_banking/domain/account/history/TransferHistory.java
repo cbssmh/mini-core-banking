@@ -37,6 +37,18 @@ public class TransferHistory {
     @Column(name = "idempotency_key", length = 128)
     private String idempotencyKey;
 
+    @Column(name = "request_id", length = 128)
+    private String requestId;
+
+    @Column(name = "error_code", length = 64)
+    private String errorCode;
+
+    @Column(name = "failure_reason", length = 500)
+    private String failureReason;
+
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private TransferStatus status;

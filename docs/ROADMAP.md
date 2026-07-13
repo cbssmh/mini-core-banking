@@ -65,15 +65,17 @@ Improve reliability and auditability around failed transfer attempts and operati
 
 | Area | Scope |
 | --- | --- |
-| Failure Recording | FAILED persistence |
-| Error Handling | Error Code |
-| Audit | Audit Metadata |
-| Traceability | Request ID |
-| Operations | Reconciliation helper |
+| Failure Recording | FAILED persistence with rollback-separated recording |
+| Error Handling | Structured error codes |
+| Audit | Request ID, error code, failure reason, completion timestamp |
+| Traceability | `X-Request-ID` propagation |
+| Operations | Failed-transfer reconciliation helper |
 
 ## Why
 
 The MVP should first prove successful reliable transfer. v2.1 extends the system so failures are also traceable, classified, and easier to reconcile.
+
+Request ID traces a single HTTP request. Idempotency key protects a single business transfer request from duplicate execution. A failed transfer stored under an idempotency key is reused for an identical retry, while a different request with the same key is rejected as a conflict.
 
 # v2.2 Observability
 
