@@ -1,0 +1,67 @@
+# Release Plan
+
+Mini Core Banking v2 uses incremental releases.
+
+Each release must satisfy its Definition of Done before the next release begins.
+
+# Release Definitions
+
+| Release | Goal | Definition of Done |
+| --- | --- | --- |
+| v2.0 | Reliable Transfer MVP | PostgreSQL runtime is configured. Flyway migrations run successfully. Account and Transfer MVP behavior is implemented. Transaction boundary is explicit. Pessimistic locking and lock ordering are applied. Idempotency is implemented. All Testcontainers tests pass. Docker Compose starts the application. GitHub Actions passes. README is updated. Release is created. |
+| v2.1 | Reliability Upgrade | FAILED transfer persistence is implemented. Error codes are defined and applied. Audit metadata is stored. Request ID is propagated or stored. Reconciliation helper is available. Failure scenarios are covered by tests. Documentation is updated. Release is created. |
+| v2.2 | Observability | Actuator is enabled. Micrometer metrics are exposed. Prometheus can scrape metrics. Grafana dashboard is available. Health and readiness checks are defined. Observability behavior is verified in runtime. Documentation is updated. Release is created. |
+| v2.3 | Platform | Docker image is optimized. Multi-stage build is applied. Runtime user is non-root. CI pipeline is improved. Runtime configuration is reviewed. Build and runtime verification pass. Documentation is updated. Release is created. |
+
+# v2.0 Done
+
+- PostgreSQL is used as the application database.
+- Flyway applies all migrations successfully.
+- Hibernate automatic schema update is disabled.
+- Account MVP is implemented.
+- Transfer MVP is implemented.
+- Transfer transaction boundary is clearly defined.
+- Pessimistic locking is used for transfer account access.
+- Lock ordering prevents avoidable deadlocks.
+- Idempotency protects repeated transfer requests.
+- All Testcontainers tests pass.
+- Docker Compose execution is verified.
+- GitHub Actions passes.
+- Runtime verification confirms startup, database connection, and migration state.
+- README is updated.
+- Release is created.
+
+# v2.1 Done
+
+- FAILED transfer attempts are persisted.
+- Error code policy is defined and applied.
+- Audit metadata is captured.
+- Request ID is available for tracing transfer attempts.
+- Reconciliation helper supports operational review.
+- Failure-path tests pass.
+- Documentation is updated.
+- Release is created.
+
+# v2.2 Done
+
+- Actuator endpoints are configured.
+- Micrometer metrics are emitted.
+- Prometheus scraping is verified.
+- Grafana dashboard is available.
+- Health endpoint is verified.
+- Readiness endpoint is verified.
+- Runtime observability check passes.
+- Documentation is updated.
+- Release is created.
+
+# v2.3 Done
+
+- Docker image is optimized.
+- Multi-stage build is applied.
+- Container runs as a non-root user.
+- CI pipeline is reviewed and improved.
+- Runtime startup remains stable.
+- Build verification passes.
+- Runtime verification passes.
+- Documentation is updated.
+- Release is created.
