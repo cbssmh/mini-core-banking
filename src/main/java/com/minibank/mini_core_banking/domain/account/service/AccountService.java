@@ -7,9 +7,9 @@ import com.minibank.mini_core_banking.domain.account.history.TransferHistory;
 import com.minibank.mini_core_banking.domain.account.history.TransferStatus;
 import com.minibank.mini_core_banking.domain.account.history.repository.TransferHistoryRepository;
 import com.minibank.mini_core_banking.domain.account.repository.AccountRepository;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -46,18 +46,29 @@ public class AccountService {
                 .orElseThrow(() -> new CustomException("계좌를 찾을 수 없습니다."));
     }
 
+    @Transactional
     public void transfer(Long fromId, Long toId, Long amount) {
+        validateTransferRequest(fromId, toId, amount);
+
         TransferHistory history = createPendingTransfer(fromId, toId, amount);
 
-        try {
-            processTransfer(history.getId(), fromId, toId, amount);
-        } catch (Exception e) {
-            markTransferFailed(history.getId());
-            throw e;
+        processTransfer(history.getId(), fromId, toId, amount);
+    }
+
+    private void validateTransferRequest(Long fromId, Long toId, Long amount) {
+        if (fromId == null || toId == null) {
+            throw new CustomException("계좌 ID는 필수입니다.");
+        }
+
+        if (amount == null || amount <= 0) {
+            throw new CustomException("이체 금액은 0보다 커야 합니다.");
+        }
+
+        if (fromId.equals(toId)) {
+            throw new CustomException("자기 자신에게 이체할 수 없습니다.");
         }
     }
 
-    @Transactional
     public TransferHistory createPendingTransfer(Long fromId, Long toId, Long amount) {
         TransferHistory history = TransferHistory.builder()
                 .fromAccountId(fromId)
@@ -70,16 +81,7 @@ public class AccountService {
         return transferHistoryRepository.save(history);
     }
 
-    @Transactional
     public void processTransfer(Long historyId, Long fromId, Long toId, Long amount) {
-
-        if (fromId.equals(toId)) {
-            throw new CustomException("자기 자신에게 이체할 수 없습니다.");
-        }
-
-        if (amount == null || amount <= 0) {
-            throw new CustomException("이체 금액은 0보다 커야 합니다.");
-        }
 
         Account from = accountRepository.findByIdForUpdate(fromId)
                 .orElseThrow(() -> new CustomException("출금 계좌 없음"));
@@ -100,8 +102,8 @@ public class AccountService {
         history.setStatus(TransferStatus.SUCCESS);
     }
 
-    @Transactional
     public void markTransferFailed(Long historyId) {
+        // TODO(v2): Persist FAILED status with an explicit failure-recording transaction.
         TransferHistory history = transferHistoryRepository.findById(historyId)
                 .orElseThrow(() -> new CustomException("이체 기록 없음"));
 

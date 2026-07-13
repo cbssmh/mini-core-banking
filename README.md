@@ -1,330 +1,61 @@
-# Mini Core Banking System
+# Mini Core Banking v1
 
-![Java](https://img.shields.io/badge/Java-21-blue)
-![Spring Boot](https://img.shields.io/badge/Spring%20Boot-Backend-brightgreen)
-![Spring Data JPA](https://img.shields.io/badge/Spring%20Data%20JPA-Persistence-6DB33F)
-![MySQL](https://img.shields.io/badge/MySQL-Database-4479A1)
-![Gradle](https://img.shields.io/badge/Gradle-Build-02303A)
+## Overview
 
-A learning-focused Spring Boot backend prototype for exploring financial transfer orchestration, validation rules, transfer lifecycle states, pessimistic locking, and transaction-boundary considerations.
+Mini Core Banking v1 is a small Java and Spring Boot backend prototype for learning and verifying account APIs, balance transfer flow, JPA persistence, database transactions, and pessimistic locking.
 
-This is not a production banking platform. The project is designed as a backend engineering portfolio project that models financial-system concerns in a compact, reviewable codebase.
+This project is not a real banking system and is not production-ready. It is a learning-focused backend prototype that demonstrates a minimal money-transfer workflow and documents its current technical limits.
 
----
+## Project Scope
 
-## Highlights
+Included in v1:
 
-| Area | What This Project Demonstrates |
-| --- | --- |
-| Layered backend design | Controller -> Service -> Repository structure using Spring Boot |
-| Transfer validation | Self-transfer prevention, positive amount validation, sufficient balance checks |
-| Transfer lifecycle | `PENDING`, `SUCCESS`, and `FAILED` status modeling |
-| Concurrency exploration | JPA `PESSIMISTIC_WRITE` locking for account balance updates |
-| Transaction design | Practical transaction-boundary learning around transfer orchestration |
-| Exception handling | Centralized business exception handling with JSON responses |
-| Financial architecture direction | Future path toward idempotency, audit trails, and ledger-oriented design |
+- Account creation
+- Account query
+- Balance transfer
+- Transfer history
+- Transaction boundary
+- Pessimistic locking
+- Request validation
+- Custom exception handling
 
----
+Not included in v1:
 
-## Project Positioning
-
-This repository is best understood as:
-
-- A Spring Boot backend learning project
-- A financial transfer orchestration prototype
-- A transaction consistency and locking study
-- A portfolio project for backend design discussion
-
-It is not intended to represent:
-
-- A production-grade financial transaction engine
-- A complete accounting or ledger system
-- A real bank core system
-- A certified money-movement platform
-
-The goal is to show engineering judgment: identifying financial-domain risks, modeling transfer states, applying validation rules, exploring locking, and understanding where the design must evolve for real financial workloads.
-
----
+- Authentication
+- Authorization
+- Idempotency
+- Ledger
+- Concurrency guarantee
+- Deadlock handling
+- Observability
+- Database migration
+- Production deployment
 
 ## Tech Stack
 
-| Category | Technology |
-| --- | --- |
+| Area | Technology |
+|---|---|
 | Language | Java 21 |
-| Framework | Spring Boot |
+| Framework | Spring Boot 4.0.4 |
+| Web | Spring Web |
 | Persistence | Spring Data JPA |
-| Database | MySQL |
-| Build | Gradle |
-| Boilerplate reduction | Lombok |
-
----
-
-## Features
-
-### Account Management
-
-- Create accounts
-- Retrieve all accounts
-- Retrieve an account by ID
-- Validate duplicate account numbers
-
-### Transfer Processing
-
-- Transfer funds between two accounts
-- Validate transfer amount
-- Prevent self-transfer
-- Check sufficient source balance
-- Persist transfer history
-- Model transfer status transitions
-
-### Transfer History
-
-- Retrieve all transfer records
-- Retrieve transfer records by account
-- Store transfer state as:
-  - `PENDING`
-  - `SUCCESS`
-  - `FAILED`
-
-### Exception Handling
-
-- Domain-specific custom exception
-- Centralized handling with `@RestControllerAdvice`
-- JSON response for business-rule failures
-
----
+| Database | MySQL 8.4.10 |
+| Build | Gradle 9.4.0 |
 
 ## Architecture
 
-### Layered Structure
-
-```mermaid
-flowchart TD
-    Client[Client] --> Controller[Controller]
-    Controller --> Service[Service]
-    Service --> Repository[Repository]
-    Repository --> MySQL[(MySQL)]
-```
-
-| Layer | Responsibility |
-| --- | --- |
-| Controller | HTTP request and response handling |
-| Service | Business rules, validation, transfer orchestration |
-| Repository | Database access through Spring Data JPA |
-| MySQL | Account and transfer-history persistence |
-
-### Transfer Flow
-
-```mermaid
-flowchart LR
-    Request[Transfer Request] --> Pending[Create PENDING History]
-    Pending --> Validate[Validate Rules]
-    Validate --> Lock[Lock Accounts]
-    Lock --> Mutate[Balance Mutation]
-    Mutate --> Success[Mark SUCCESS]
-    Validate --> Failed[Mark FAILED]
-    Lock --> Failed
-    Mutate --> Failed
-```
-
-The flow models a state-driven transfer process. It is useful for discussing financial backend design, but it is intentionally not presented as a complete production transaction workflow.
-
----
-
-## API
-
-### Account API
-
-```http
-POST /accounts
-GET /accounts
-GET /accounts/{id}
-```
-
-### Transfer API
-
-```http
-POST /accounts/transfer
-```
-
-### Transfer History API
-
-```http
-GET /transfers
-GET /transfers/account/{accountId}
-```
-
----
-
-## Example Requests
-
-### Create Account
-
-```http
-POST http://localhost:8080/accounts
-Content-Type: application/json
-
-{
-  "accountNumber": "111-222-333",
-  "balance": 100000,
-  "ownerName": "kim"
-}
-```
-
-### Transfer Money
-
-```http
-POST http://localhost:8080/accounts/transfer
-Content-Type: application/json
-
-{
-  "fromAccountId": 1,
-  "toAccountId": 2,
-  "amount": 5000
-}
-```
-
-### Get Transfer History
-
-```http
-GET http://localhost:8080/transfers
-```
-
----
-
-## Database Model
-
-### `account`
-
-| Column | Purpose |
-| --- | --- |
-| `id` | Account identifier |
-| `account_number` | Unique account number |
-| `balance` | Current account balance |
-| `owner_name` | Account owner name |
-
-### `transfer_history`
-
-| Column | Purpose |
-| --- | --- |
-| `id` | Transfer history identifier |
-| `from_account_id` | Source account ID |
-| `to_account_id` | Destination account ID |
-| `amount` | Transfer amount |
-| `transferred_at` | Transfer timestamp |
-| `status` | Transfer lifecycle status |
-
-The current model records transfer history, but it is not a double-entry ledger. A stronger financial-system design would store immutable debit and credit postings and treat account balance as a controlled projection.
-
----
-
-## Validation Rules
-
-| Rule | Purpose |
-| --- | --- |
-| Source and destination accounts must differ | Prevent self-transfer |
-| Transfer amount must be greater than zero | Reject invalid money movement |
-| Source account must have sufficient balance | Avoid overdrawing simple account model |
-| Account number must be unique | Prevent duplicate account identity |
-
----
-
-## Transaction-Boundary Learning
-
-This project uses `@Transactional` as a learning point for grouping account updates and transfer-history changes.
-
-Key considerations explored by the project:
-
-- Balance withdrawal, balance deposit, and history update belong to one logical transfer operation.
-- Failure-state recording may need separate transaction propagation to survive rollback.
-- Spring proxy behavior matters when transactional methods call other methods in the same bean.
-- Pessimistic locks are only meaningful when acquired inside an active transaction.
-
-These topics are intentionally visible in the design so they can be discussed and improved.
-
----
-
-## Concurrency Considerations
-
-The repository uses JPA pessimistic write locking when loading accounts for transfer processing.
-
-| Consideration | Why It Matters |
-| --- | --- |
-| Concurrent balance updates | Multiple transfers may target the same account |
-| Lock ordering | Opposite-direction transfers can deadlock without deterministic ordering |
-| Lock timeout handling | Production systems need explicit timeout and retry behavior |
-| High-contention accounts | Lock-based designs can limit throughput |
-
-The current implementation demonstrates the concept. A production-oriented design would add deterministic lock ordering, timeout handling, retry policy, and concurrency tests.
-
----
-
-## Known Technical Risks
-
-| Risk | Design Implication |
-| --- | --- |
-| Spring self-invocation transaction caveat | Internal calls to `@Transactional` methods may not apply proxy-based transaction behavior |
-| Failure-state persistence | `FAILED` status may require separate transaction propagation such as `REQUIRES_NEW` |
-| Deadlock potential | Account locks should be acquired in deterministic order |
-| Missing idempotency | Client retries can create duplicate transfer attempts |
-| No ledger model yet | Transfer history is not a substitute for immutable accounting entries |
-
-These are not hidden weaknesses. They define the next engineering steps and make the project useful for technical discussion.
-
----
-
-## Interview Discussion Points
-
-- Why simple CRUD is insufficient for money movement
-- How transaction boundaries affect withdrawal, deposit, and history persistence
-- Why failed-state recording can conflict with rollback behavior
-- When pessimistic locking is useful, and what risks it introduces
-- Why idempotency is essential for retry-safe transfer APIs
-- Why a double-entry ledger is a stronger foundation than direct balance mutation
-- How account states, audit logs, reconciliation, and reversals would change the design
-
----
-
-## Future Roadmap
-
-### Transaction Correctness
-
-- Refine transaction boundaries for transfer orchestration
-- Persist failure states reliably with explicit transaction propagation
-- Define stricter transfer status transition rules
-- Add rollback and failure-state integration tests
-
-### Concurrency
-
-- Enforce deterministic account lock ordering
-- Configure pessimistic lock timeout behavior
-- Add concurrent transfer tests
-- Evaluate optimistic locking for lower-contention scenarios
-
-### Idempotency
-
-- Add a client-provided idempotency key or transfer request ID
-- Prevent duplicate transfer execution on retry
-- Store request-processing results for repeated submissions
-
-### Ledger and Audit
-
-- Introduce immutable ledger entries
-- Represent transfers as debit and credit postings
-- Add audit logs with actor, request ID, channel, and trace information
-- Support reversal transactions instead of mutation-only history
-
-### API and Operations
-
-- Add structured error codes
-- Add pagination and filtering for transfer history
-- Add authentication and authorization
-- Replace development schema handling with migration-managed changes
-- Add OpenAPI documentation
-
----
-
-## Project Structure
+The project uses a simple Spring Boot layered structure.
+
+| Component | Responsibility |
+|---|---|
+| Controller | Exposes HTTP APIs and maps request bodies to DTOs |
+| Service | Applies validation, transaction boundary, transfer orchestration, and business rules |
+| Repository | Provides database access through Spring Data JPA |
+| Entity | Maps account and transfer history tables |
+| DTO | Defines request and response payloads |
+| Exception Handler | Converts custom business exceptions into JSON error responses |
+
+Main package structure:
 
 ```text
 src/main/java/com/minibank/mini_core_banking
@@ -334,10 +65,6 @@ src/main/java/com/minibank/mini_core_banking
 │       ├── dto
 │       ├── exception
 │       ├── history
-│       │   ├── controller
-│       │   ├── repository
-│       │   ├── TransferHistory.java
-│       │   └── TransferStatus.java
 │       ├── repository
 │       ├── service
 │       └── Account.java
@@ -345,30 +72,288 @@ src/main/java/com/minibank/mini_core_banking
     └── GlobalExceptionHandler.java
 ```
 
----
+## Transfer Flow
 
-## Getting Started
+Current successful transfer flow:
 
-### 1. Create Database
-
-```sql
-CREATE DATABASE minibank;
+```text
+HTTP request
+  -> request-level validation
+  -> create PENDING history
+  -> lock source account
+  -> lock destination account
+  -> validate balance
+  -> debit source
+  -> credit destination
+  -> mark SUCCESS
+  -> commit
 ```
 
-### 2. Configure `application.yml`
+All of the transfer processing above runs inside a single transaction boundary in `AccountService.transfer()`.
 
-```yaml
-spring:
-  datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/minibank}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:}
-```
+If an exception occurs after the transaction starts, the whole transaction is rolled back. This means failed transfer attempts currently do not leave a transfer history row. The `FAILED` enum value exists, but independent failed-history persistence is not implemented in v1.
 
-For local development, set `DB_PASSWORD` if your MySQL user requires a password.
+## Implemented Features
 
-### 3. Run the Application
+The following features were manually verified:
+
+- Account creation
+- Account list
+- Account detail
+- Transfer
+- Transfer history list
+- Account-specific transfer history
+- Self-transfer validation
+- Non-positive amount validation
+- Pessimistic locking
+- Rollback on insufficient balance
+- SUCCESS history persistence
+
+## API Examples
+
+### Create Account
 
 ```bash
+curl -X POST http://localhost:8080/accounts \
+  -H "Content-Type: application/json" \
+  -d '{
+    "accountNumber": "111-222-333",
+    "balance": 100000,
+    "ownerName": "kim"
+  }'
+```
+
+Example response:
+
+```json
+{
+  "id": 1,
+  "accountNumber": "111-222-333",
+  "balance": 100000,
+  "ownerName": "kim"
+}
+```
+
+### Get Accounts
+
+```bash
+curl http://localhost:8080/accounts
+```
+
+Example response:
+
+```json
+[
+  {
+    "id": 1,
+    "accountNumber": "111-222-333",
+    "balance": 100000,
+    "ownerName": "kim"
+  }
+]
+```
+
+### Get Account Detail
+
+```bash
+curl http://localhost:8080/accounts/1
+```
+
+Example response:
+
+```json
+{
+  "id": 1,
+  "accountNumber": "111-222-333",
+  "balance": 100000,
+  "ownerName": "kim"
+}
+```
+
+### Transfer
+
+```bash
+curl -X POST http://localhost:8080/accounts/transfer \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fromAccountId": 1,
+    "toAccountId": 2,
+    "amount": 5000
+  }'
+```
+
+Example success response:
+
+```text
+OK
+```
+
+Example business error response:
+
+```json
+{
+  "message": "잔액 부족"
+}
+```
+
+### Get Transfer History
+
+```bash
+curl http://localhost:8080/transfers
+```
+
+Example response:
+
+```json
+[
+  {
+    "id": 8,
+    "fromAccountId": 3,
+    "toAccountId": 4,
+    "amount": 10000,
+    "transferredAt": "2026-07-13T14:14:31.531312",
+    "status": "SUCCESS"
+  }
+]
+```
+
+### Get Transfer History by Account
+
+```bash
+curl http://localhost:8080/transfers/account/3
+```
+
+Example response:
+
+```json
+[
+  {
+    "id": 8,
+    "fromAccountId": 3,
+    "toAccountId": 4,
+    "amount": 10000,
+    "transferredAt": "2026-07-13T14:14:31.531312",
+    "status": "SUCCESS"
+  }
+]
+```
+
+## How to Run
+
+Prerequisites:
+
+- Java 21
+- Docker
+- MySQL container
+
+MySQL command used for verification:
+
+```bash
+docker run --name mini-core-banking-mysql \
+  -e MYSQL_DATABASE=minibank \
+  -e MYSQL_ALLOW_EMPTY_PASSWORD=yes \
+  -p 3306:3306 \
+  -d mysql:8.4
+```
+
+The empty root password is only for local learning and manual verification. Do not use this setting in an operational environment.
+
+Run the application:
+
+```bash
+./gradlew clean test
+./gradlew build
 ./gradlew bootRun
 ```
+
+## Verification Results
+
+| Scenario | Result |
+|---|---|
+| Account creation | Passed |
+| Successful transfer | Passed |
+| Balance conservation | Passed |
+| Insufficient balance rollback | Passed |
+| Self-transfer rejection | Passed |
+| Pessimistic lock query | Observed |
+| Duplicate request protection | Not implemented |
+
+Manual verification data:
+
+| Item | Value |
+|---|---|
+| Account 3 initial balance | 100000 |
+| Account 4 initial balance | 10000 |
+| Successful transfer history | id `8`, amount `10000`, status `SUCCESS` |
+| Repeated request history | id `10`, amount `5000`, status `SUCCESS` |
+| Repeated request history | id `11`, amount `5000`, status `SUCCESS` |
+| Account 3 final balance | 80000 |
+| Account 4 final balance | 30000 |
+
+Balance invariant:
+
+```text
+100000 + 10000 = 80000 + 30000 = 110000
+```
+
+The repeated request verification used the same `5000` transfer request twice. Because idempotency is not implemented, both requests were processed and two `SUCCESS` history rows were created.
+
+History id `9` was not present after verification. This is consistent with a failed transaction consuming a MySQL auto-increment value while the row itself was rolled back.
+
+## Known Limitations
+
+- No idempotency
+- No deterministic lock ordering
+- No concurrency integration test
+- No deadlock handling or retry
+- No FAILED persistence
+- No immutable ledger
+- No authentication or authorization
+- No migration tool
+- External MySQL is required
+- Only minimal automated test coverage
+- `spring.jpa.open-in-view` warning is present
+- Not production-ready
+
+The `FAILED` enum exists in the code, but failed transfer attempts currently roll back the transaction, so a failed transfer row is not independently persisted in v1.
+
+## Learning Outcomes
+
+This project documents and verifies the following learning points:
+
+- Spring proxy transaction boundary
+- Same-bean self-invocation problem
+- Pessimistic locks require an active transaction
+- Relationship between rollback and history persistence
+- MySQL auto-increment values may not be rolled back
+- Why idempotency is needed for retry-safe transfer APIs
+- Why deterministic lock ordering is needed for stronger concurrency handling
+
+## Version History
+
+### v1.0.0
+
+- Account APIs
+- Working transfer flow
+- Transaction boundary fix
+- Pessimistic lock verification
+- Rollback verification
+- Documented limitations
+
+## v2 Roadmap
+
+The following items are intentionally deferred to v2:
+
+- Testcontainers
+- Flyway
+- PostgreSQL
+- Idempotency key
+- Deterministic lock ordering
+- Concurrency tests
+- FAILED persistence strategy
+- Docker Compose
+- GitHub Actions
+- Actuator
+- Micrometer
+- Prometheus
+- Grafana
