@@ -1,171 +1,143 @@
-# Mini Core Banking v2
+# Mini Core Banking v2.2
 
 ## Overview
 
-Mini Core Banking v2 is a Spring Boot backend project for verifying a reliable account transfer flow.
+Mini Core Banking is a Java 21 and Spring Boot 4 backend project for studying reliable account transfers with operational observability.
 
-v2.0 focuses on PostgreSQL persistence, Flyway-managed schema, transaction boundary, pessimistic locking, deterministic lock ordering, idempotency, integration tests, Docker Compose runtime, and CI verification.
+v2.2 is the final version of this project. It combines reliable transfer behavior, failed-transfer traceability, and a local observability stack with Actuator, Micrometer, Prometheus, and Grafana.
 
-This project is not a real banking system.
+This project is a learning system, not a production banking platform.
+
+## Version Evolution
+
+| Version | Focus |
+| --- | --- |
+| v1.0.0 | Learning Prototype |
+| v2.0.0 | Reliable Transfer MVP |
+| v2.1.0 | Reliability Upgrade |
+| v2.2.0 | Observability & Final Release |
 
 ## Architecture
 
-The application uses a layered Spring Boot structure.
-
 | Layer | Responsibility |
 | --- | --- |
-| Controller | Exposes account and transfer HTTP APIs. |
-| Application Service | Owns transfer transaction boundary, idempotency check, lock ordering, and transfer orchestration. |
-| Entity | Maps the Flyway-managed database schema. |
-| Repository | Provides JPA persistence access and pessimistic lock query. |
-| Database | Stores accounts and transfer history in PostgreSQL. |
+| Controller | Exposes account, transfer, history, and reconciliation APIs. |
+| Application Service | Validates transfer requests, coordinates transaction processing, failure recording, idempotency outcomes, and metrics. |
+| Transfer Processor | Owns the main transfer transaction, account locking, balance movement, and SUCCESS history. |
+| Failure Recorder | Persists FAILED transfer history in a separate `REQUIRES_NEW` transaction. |
+| Repository | Provides JPA persistence and PostgreSQL locking access. |
+| Database | Stores accounts and transfer history through Flyway-managed schema. |
+| Observability | Exposes health and metrics to Prometheus and Grafana. |
 
-## Tech Stack
+## Reliability Design
 
-| Area | Technology |
-| --- | --- |
-| Language | Java 21 |
-| Framework | Spring Boot 4.0.4 |
-| Persistence | Spring Data JPA |
-| Database | PostgreSQL 17 |
-| Migration | Flyway |
-| Tests | JUnit, Spring Boot Test, Testcontainers PostgreSQL |
-| Build | Gradle |
-| Runtime | Docker Compose |
-| CI | GitHub Actions |
+- PostgreSQL is the runtime database.
+- Flyway owns schema migration V1 through V3.
+- Hibernate schema auto-update is disabled.
+- Transfers use an explicit transaction boundary.
+- Account rows are locked pessimistically.
+- Account ids are ordered before locking to reduce avoidable deadlocks.
+- Idempotency prevents duplicate debit and credit execution.
+- Failed business transfer attempts are persisted as `FAILED`.
+- Request validation failures do not create transfer history rows.
+- `X-Request-ID` traces a single HTTP request.
+- `idempotencyKey` identifies one business transfer request.
 
-## Key Features
+## Observability Design
 
-- Account creation
-- Account query
-- Transfer
-- Transfer history query
-- PostgreSQL schema managed by Flyway
-- Hibernate `ddl-auto=none`
-- Transfer transaction boundary
-- Pessimistic account locking
-- Deterministic lock ordering by account id
-- Transfer idempotency key
-- PostgreSQL Testcontainers integration tests
+v2.2 adds:
 
-## Transfer Flow
+- Spring Boot Actuator
+- Micrometer Prometheus registry
+- Health, liveness, and readiness probes
+- Transfer business metrics
+- JVM, process, HTTP server, and HikariCP metrics from auto-configuration
+- Prometheus scraping
+- Grafana datasource and dashboard provisioning
+
+In Spring Boot 4, datasource pool metrics are exposed with names such as `jdbc_connections_active`, `jdbc_connections_idle`, and `jdbc_connections_pending`.
+
+No OpenTelemetry, tracing backend, alerting stack, Kubernetes, or Terraform is included.
+
+## Metrics
+
+Custom Micrometer meter names:
+
+| Micrometer Name | Prometheus Name | Meaning |
+| --- | --- | --- |
+| `bank.transfer.attempts` | `bank_transfer_attempts_total` | Valid transfer application requests. |
+| `bank.transfer.success` | `bank_transfer_success_total` | New transfers that returned successfully after processing. |
+| `bank.transfer.failed` | `bank_transfer_failed_total` | Business failures recorded as FAILED history. |
+| `bank.transfer.idempotency.replay` | `bank_transfer_idempotency_replay_total` | Existing SUCCESS or FAILED results returned for the same key and payload. |
+| `bank.transfer.idempotency.conflict` | `bank_transfer_idempotency_conflict_total` | Same idempotency key reused with different transfer details. |
+| `bank.transfer.duration` | `bank_transfer_duration_seconds_*` | Transfer application service duration for success, failure, replay, and conflict paths. |
+
+Low-cardinality timer tags:
+
+- `outcome=success|failed|replay|conflict|error|unknown`
+- `error_code=NONE|ACCOUNT_NOT_FOUND|INSUFFICIENT_BALANCE|IDEMPOTENCY_CONFLICT|...`
+
+High-cardinality values such as request id, idempotency key, account id, raw messages, and user input are not used as metric tags.
+
+## Health and Readiness
+
+Actuator endpoints exposed:
+
+- `/actuator/health`
+- `/actuator/health/liveness`
+- `/actuator/health/readiness`
+- `/actuator/prometheus`
+
+Liveness indicates that the application process is alive. Readiness includes dependency health such as database connectivity and is used by Docker Compose for the app healthcheck.
+
+## Prometheus
+
+Prometheus is configured by `observability/prometheus/prometheus.yml`.
+
+It scrapes:
 
 ```text
-HTTP request
-  -> request validation
-  -> idempotency key lock
-  -> existing idempotency key lookup
-  -> create PENDING transfer history
-  -> lock accounts by ascending account id
-  -> check source balance
-  -> debit source account
-  -> credit target account
-  -> mark transfer history SUCCESS
-  -> commit
+job_name: mini-core-banking
+target: app:8080
+metrics_path: /actuator/prometheus
 ```
 
-If account lookup, balance check, validation, or database work fails, the transaction rolls back. v2.0 does not persist independent FAILED transfer rows.
+Local URL:
 
-## Idempotency
+```text
+http://localhost:9090
+```
 
-The transfer API requires `idempotencyKey` in the JSON body.
+## Grafana
 
-Same key and same request:
+Grafana is provisioned with:
 
-- returns the existing transfer result
-- does not move money again
+- Prometheus datasource
+- Mini Core Banking dashboard
 
-Same key and different request:
+Local URL:
 
-- returns a conflict-style business error
-- does not move money
+```text
+http://localhost:3000
+```
 
-The database enforces a unique constraint on `transfer_history.idempotency_key`.
+Default local credentials are `admin` / `admin` unless overridden with `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD`. These defaults are for local development only.
 
-## Concurrency Strategy
+## Docker Compose
 
-Transfers lock both account rows with JPA `PESSIMISTIC_WRITE`.
+Services:
 
-Account ids are sorted in ascending order before lock acquisition. This reduces deadlock risk when opposite-direction transfers access the same account pair.
-
-This strategy does not claim that all deadlocks are impossible.
-
-## Testing
-
-Repository and transfer integration tests use PostgreSQL Testcontainers.
-
-Verified test coverage includes:
-
-- Account save and lookup
-- Unique account number constraint
-- Transfer history save
-- Foreign key enforcement
-- Successful transfer
-- Balance updates
-- Total amount invariant
-- Insufficient balance rollback
-- Self-transfer rejection
-- Missing account rollback
-- Idempotency replay
-- Idempotency conflict
-- Lock ordering structure
-- Concurrent same-key transfer request
+- `postgres`
+- `app`
+- `prometheus`
+- `grafana`
 
 Run:
 
 ```bash
-./gradlew clean test
-```
-
-## Docker
-
-Docker Compose includes:
-
-- `postgres`
-- `app`
-- bridge network
-- PostgreSQL volume
-- PostgreSQL healthcheck
-- app startup after PostgreSQL health
-
-The app service runs the local Gradle-built jar. Build the jar before starting Docker Compose.
-
-PostgreSQL is exposed on host port `5433` to avoid conflicting with a local database already using `5432`.
-
-## CI
-
-GitHub Actions runs:
-
-```text
-checkout
-setup Java 21
-start PostgreSQL service
-start application for Flyway migration
-run Testcontainers tests
-build
-success
-```
-
-Deploy is not included.
-
-## How to Run
-
-Run tests:
-
-```bash
-./gradlew clean test
-```
-
-Build:
-
-```bash
 ./gradlew build
-```
-
-Run with Docker Compose:
-
-```bash
-docker compose up
+docker compose up -d
+docker compose ps
 ```
 
 Stop:
@@ -174,69 +146,72 @@ Stop:
 docker compose down
 ```
 
-Remove the PostgreSQL volume when a clean local database is required:
+Volumes are not removed by default.
+
+## Testing
+
+Run:
 
 ```bash
-docker compose down -v
+./gradlew clean test
 ```
 
-## Verification
+Coverage includes:
 
-Create two accounts:
+- transfer success and rollback behavior
+- failed transfer persistence
+- idempotency replay and conflict
+- request id propagation
+- reconciliation query
+- custom transfer metrics
+- Actuator health endpoint
+- Prometheus endpoint text exposure
+
+## CI
+
+GitHub Actions:
+
+- validates the Gradle wrapper
+- starts PostgreSQL
+- starts the application
+- verifies `/actuator/health/readiness`
+- verifies `/actuator/prometheus`
+- runs Testcontainers tests
+- builds the project
+
+No deploy, tag, or release step is included.
+
+## Runtime Verification
+
+Recommended final local verification:
 
 ```bash
-curl -X POST http://localhost:8080/accounts \
-  -H "Content-Type: application/json" \
-  -d '{"accountNumber":"v2-001","ownerName":"Alice","balance":10000}'
-
-curl -X POST http://localhost:8080/accounts \
-  -H "Content-Type: application/json" \
-  -d '{"accountNumber":"v2-002","ownerName":"Bob","balance":5000}'
-```
-
-Transfer:
-
-```bash
-curl -X POST http://localhost:8080/accounts/transfer \
-  -H "Content-Type: application/json" \
-  -d '{"fromAccountId":1,"toAccountId":2,"amount":1000,"idempotencyKey":"demo-key-001"}'
-```
-
-Expected response shape:
-
-```json
-{
-  "transferId": 1,
-  "status": "SUCCESS",
-  "idempotencyKey": "demo-key-001"
-}
-```
-
-Replay the same request with the same `idempotencyKey`. The same transfer result should be returned and balances should not change again.
-
-Check accounts:
-
-```bash
-curl http://localhost:8080/accounts
+./gradlew clean test
+./gradlew build
+docker compose config
+docker compose up -d
+docker compose ps
+curl http://localhost:8080/actuator/health
+curl http://localhost:8080/actuator/health/liveness
+curl http://localhost:8080/actuator/health/readiness
+curl http://localhost:8080/actuator/prometheus
+curl http://localhost:9090/api/v1/targets
+curl http://localhost:3000/api/health
+docker compose down
 ```
 
 ## Known Limitations
 
-- FAILED transfer persistence is not implemented in v2.0.
-- Audit metadata is not implemented.
-- Error codes are not structured.
-- Request ID propagation is not implemented.
-- Reconciliation helper is not implemented.
-- There is no authentication or authorization.
-- There is no ledger model.
-- There is no observability stack.
+- No authentication or authorization.
+- No ledger model.
+- No multi-currency support.
+- No distributed tracing.
+- No alert manager or alert policy.
+- No cloud deployment.
+- Not certified as production-ready.
 
-## Roadmap
+## Project Completion
 
-v2.1 focuses on:
+Mini Core Banking is complete at v2.2.0.
 
-- FAILED persistence
-- Audit metadata
-- Error codes
-- Request ID
-- Reconciliation helper
+Kubernetes, Terraform, OpenTelemetry, distributed tracing, and production deployment are intentionally left as separate project topics.

@@ -10,8 +10,7 @@ Each release must satisfy its Definition of Done before the next release begins.
 | --- | --- | --- |
 | v2.0 | Reliable Transfer MVP | PostgreSQL runtime is configured. Flyway migrations run successfully. Account and Transfer MVP behavior is implemented. Transaction boundary is explicit. Pessimistic locking and lock ordering are applied. Idempotency is implemented. All Testcontainers tests pass. Docker Compose starts the application. GitHub Actions passes. README is updated. Release is created. |
 | v2.1 | Reliability Upgrade | FAILED transfer persistence is implemented. Error codes are defined and applied. Audit metadata is stored. Request ID is propagated or stored. Reconciliation helper is available. Failure scenarios are covered by tests. Documentation is updated. Release is created. |
-| v2.2 | Observability | Actuator is enabled. Micrometer metrics are exposed. Prometheus can scrape metrics. Grafana dashboard is available. Health and readiness checks are defined. Observability behavior is verified in runtime. Documentation is updated. Release is created. |
-| v2.3 | Platform | Docker image is optimized. Multi-stage build is applied. Runtime user is non-root. CI pipeline is improved. Runtime configuration is reviewed. Build and runtime verification pass. Documentation is updated. Release is created. |
+| v2.2 | Observability & Final Release | Actuator is enabled. Micrometer metrics are exposed. Prometheus can scrape metrics. Grafana dashboard is available. Health, liveness, and readiness checks are defined. Observability behavior is verified in runtime. Documentation and final checklist are updated. Release is created. |
 
 # v2.0 Done
 
@@ -49,19 +48,14 @@ Each release must satisfy its Definition of Done before the next release begins.
 - Prometheus scraping is verified.
 - Grafana dashboard is available.
 - Health endpoint is verified.
+- Liveness endpoint is verified.
 - Readiness endpoint is verified.
+- Transfer custom metrics are verified.
+- JVM, HTTP server, and HikariCP metrics are available.
 - Runtime observability check passes.
 - Documentation is updated.
 - Release is created.
 
-# v2.3 Done
+# Project Completion
 
-- Docker image is optimized.
-- Multi-stage build is applied.
-- Container runs as a non-root user.
-- CI pipeline is reviewed and improved.
-- Runtime startup remains stable.
-- Build verification passes.
-- Runtime verification passes.
-- Documentation is updated.
-- Release is created.
+Mini Core Banking is complete at v2.2.0. Platform topics such as Kubernetes, Terraform, cloud deployment, and distributed tracing are separate project topics.
