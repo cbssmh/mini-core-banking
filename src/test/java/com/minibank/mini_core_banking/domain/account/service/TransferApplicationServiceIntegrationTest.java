@@ -4,8 +4,12 @@ import com.minibank.mini_core_banking.domain.account.Account;
 import com.minibank.mini_core_banking.domain.account.dto.TransferRequest;
 import com.minibank.mini_core_banking.domain.account.dto.TransferResponse;
 import com.minibank.mini_core_banking.domain.account.exception.CustomException;
+import com.minibank.mini_core_banking.domain.account.exception.ErrorCode;
+import com.minibank.mini_core_banking.domain.account.history.TransferHistory;
+import com.minibank.mini_core_banking.domain.account.history.TransferStatus;
 import com.minibank.mini_core_banking.domain.account.history.repository.TransferHistoryRepository;
 import com.minibank.mini_core_banking.domain.account.repository.AccountRepository;
+import com.minibank.mini_core_banking.global.RequestIdHolder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -84,17 +88,26 @@ class TransferApplicationServiceIntegrationTest {
     }
 
     @Test
-    void rollsBackWhenBalanceIsInsufficient() {
+    void rollsBackBalancesAndPersistsFailedHistoryWhenBalanceIsInsufficient() {
         Account from = saveAccount("200-000-003", "Carol", 1_000L);
         Account to = saveAccount("200-000-004", "Dave", 5_000L);
 
         assertThatThrownBy(() -> transferApplicationService.transfer(
                 request(from.getId(), to.getId(), 2_000L, "transfer-key-002")
-        )).isInstanceOf(CustomException.class);
+        )).isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INSUFFICIENT_BALANCE);
 
         assertThat(accountRepository.findById(from.getId()).orElseThrow().getBalance()).isEqualTo(1_000L);
         assertThat(accountRepository.findById(to.getId()).orElseThrow().getBalance()).isEqualTo(5_000L);
-        assertThat(transferHistoryRepository.findAll()).isEmpty();
+
+        List<TransferHistory> histories = transferHistoryRepository.findAll();
+        assertThat(histories).hasSize(1);
+        assertThat(histories.getFirst().getStatus()).isEqualTo(TransferStatus.FAILED);
+        assertThat(histories.getFirst().getErrorCode()).isEqualTo("INSUFFICIENT_BALANCE");
+        assertThat(histories.getFirst().getFailureReason()).isEqualTo("잔액 부족");
+        assertThat(histories.getFirst().getRequestId()).isNotBlank();
+        assertThat(histories.getFirst().getCompletedAt()).isNotNull();
     }
 
     @Test
@@ -110,15 +123,22 @@ class TransferApplicationServiceIntegrationTest {
     }
 
     @Test
-    void rollsBackWhenAccountDoesNotExist() {
+    void rollsBackBalancesAndPersistsFailedHistoryWhenAccountDoesNotExist() {
         Account from = saveAccount("200-000-006", "Frank", 1_000L);
 
         assertThatThrownBy(() -> transferApplicationService.transfer(
                 request(from.getId(), 999_999L, 100L, "transfer-key-004")
-        )).isInstanceOf(RuntimeException.class);
+        )).isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.ACCOUNT_NOT_FOUND);
 
         assertThat(accountRepository.findById(from.getId()).orElseThrow().getBalance()).isEqualTo(1_000L);
-        assertThat(transferHistoryRepository.findAll()).isEmpty();
+
+        List<TransferHistory> histories = transferHistoryRepository.findAll();
+        assertThat(histories).hasSize(1);
+        assertThat(histories.getFirst().getStatus()).isEqualTo(TransferStatus.FAILED);
+        assertThat(histories.getFirst().getErrorCode()).isEqualTo("ACCOUNT_NOT_FOUND");
+        assertThat(histories.getFirst().getToAccountId()).isEqualTo(999_999L);
     }
 
     @Test
@@ -153,6 +173,43 @@ class TransferApplicationServiceIntegrationTest {
         assertThat(accountRepository.findById(from.getId()).orElseThrow().getBalance()).isEqualTo(9_000L);
         assertThat(accountRepository.findById(to.getId()).orElseThrow().getBalance()).isEqualTo(6_000L);
         assertThat(transferHistoryRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    void returnsExistingFailedResultForSameIdempotencyKeyAndSameFailedRequest() {
+        Account from = saveAccount("200-000-013", "Mina", 1_000L);
+        Account to = saveAccount("200-000-014", "Noah", 5_000L);
+        TransferRequest request = request(from.getId(), to.getId(), 2_000L, "transfer-key-008");
+
+        assertThatThrownBy(() -> transferApplicationService.transfer(request))
+                .isInstanceOf(CustomException.class);
+
+        TransferResponse retry = transferApplicationService.transfer(request);
+
+        assertThat(retry.getStatus()).isEqualTo(TransferStatus.FAILED);
+        assertThat(accountRepository.findById(from.getId()).orElseThrow().getBalance()).isEqualTo(1_000L);
+        assertThat(accountRepository.findById(to.getId()).orElseThrow().getBalance()).isEqualTo(5_000L);
+        assertThat(transferHistoryRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    void propagatesRequestIdToFailedHistory() {
+        Account from = saveAccount("200-000-015", "Olivia", 1_000L);
+        Account to = saveAccount("200-000-016", "Parker", 5_000L);
+
+        try {
+            RequestIdHolder.set("req-transfer-001");
+
+            assertThatThrownBy(() -> transferApplicationService.transfer(
+                    request(from.getId(), to.getId(), 2_000L, "transfer-key-009")
+            )).isInstanceOf(CustomException.class);
+
+            TransferHistory failed = transferHistoryRepository.findAll().getFirst();
+            assertThat(failed.getStatus()).isEqualTo(TransferStatus.FAILED);
+            assertThat(failed.getRequestId()).isEqualTo("req-transfer-001");
+        } finally {
+            RequestIdHolder.clear();
+        }
     }
 
     @Test

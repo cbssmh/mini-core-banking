@@ -1,6 +1,7 @@
 package com.minibank.mini_core_banking.domain.account.service;
 
 import com.minibank.mini_core_banking.domain.account.history.TransferHistory;
+import com.minibank.mini_core_banking.domain.account.history.TransferStatus;
 import com.minibank.mini_core_banking.domain.account.history.repository.TransferHistoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,5 +20,9 @@ public class TransferHistoryQueryService {
 
     public List<TransferHistory> getTransfersByAccount(Long accountId) {
         return transferHistoryRepository.findByFromAccountIdOrToAccountIdOrderByIdDesc(accountId, accountId);
+    }
+
+    public List<TransferHistory> getFailedTransfersForReconciliation() {
+        return transferHistoryRepository.findByStatusOrderByIdDesc(TransferStatus.FAILED);
     }
 }

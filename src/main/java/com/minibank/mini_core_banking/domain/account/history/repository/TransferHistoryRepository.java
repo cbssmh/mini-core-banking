@@ -1,6 +1,7 @@
 package com.minibank.mini_core_banking.domain.account.history.repository;
 
 import com.minibank.mini_core_banking.domain.account.history.TransferHistory;
+import com.minibank.mini_core_banking.domain.account.history.TransferStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,6 +16,8 @@ public interface TransferHistoryRepository extends JpaRepository<TransferHistory
     List<TransferHistory> findAllByOrderByIdDesc();
 
     List<TransferHistory> findByFromAccountIdOrToAccountIdOrderByIdDesc(Long fromAccountId, Long toAccountId);
+
+    List<TransferHistory> findByStatusOrderByIdDesc(TransferStatus status);
 
     @Query(value = "select pg_advisory_xact_lock(hashtext(:idempotencyKey))", nativeQuery = true)
     void acquireIdempotencyLock(@Param("idempotencyKey") String idempotencyKey);

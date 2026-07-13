@@ -24,4 +24,9 @@ public class TransferController {
     public List<TransferHistory> getTransfersByAccount(@PathVariable Long accountId) {
         return transferHistoryQueryService.getTransfersByAccount(accountId);
     }
+
+    @GetMapping("/transfers/reconciliation/failed")
+    public List<TransferHistory> getFailedTransfersForReconciliation() {
+        return transferHistoryQueryService.getFailedTransfersForReconciliation();
+    }
 }
