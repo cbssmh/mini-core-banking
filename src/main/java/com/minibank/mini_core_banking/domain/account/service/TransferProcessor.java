@@ -26,7 +26,7 @@ public class TransferProcessor {
     private final TransferHistoryRepository transferHistoryRepository;
 
     @Transactional
-    public TransferResponse process(TransferRequest request) {
+    public TransferProcessingResult process(TransferRequest request) {
         transferHistoryRepository.acquireIdempotencyLock(request.getIdempotencyKey());
 
         return transferHistoryRepository.findByIdempotencyKey(request.getIdempotencyKey())
@@ -34,15 +34,15 @@ public class TransferProcessor {
                 .orElseGet(() -> executeNewTransfer(request));
     }
 
-    private TransferResponse handleDuplicate(TransferHistory existing, TransferRequest request) {
+    private TransferProcessingResult handleDuplicate(TransferHistory existing, TransferRequest request) {
         if (!isSameRequest(existing, request)) {
             throw new CustomException(ErrorCode.IDEMPOTENCY_CONFLICT);
         }
 
-        return TransferResponse.from(existing);
+        return new TransferProcessingResult(TransferResponse.from(existing), TransferOutcome.REPLAY);
     }
 
-    private TransferResponse executeNewTransfer(TransferRequest request) {
+    private TransferProcessingResult executeNewTransfer(TransferRequest request) {
         LocalDateTime now = LocalDateTime.now();
         TransferHistory history = transferHistoryRepository.save(TransferHistory.builder()
                 .fromAccountId(request.getFromAccountId())
@@ -72,7 +72,7 @@ public class TransferProcessor {
         history.setStatus(TransferStatus.SUCCESS);
         history.setCompletedAt(LocalDateTime.now());
 
-        return TransferResponse.from(history);
+        return new TransferProcessingResult(TransferResponse.from(history), TransferOutcome.SUCCESS);
     }
 
     List<Account> lockAccountsInDeterministicOrder(Long firstAccountId, Long secondAccountId) {

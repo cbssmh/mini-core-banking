@@ -15,17 +15,41 @@ public class TransferApplicationService {
 
     private final TransferProcessor transferProcessor;
     private final TransferFailureRecorder transferFailureRecorder;
+    private final TransferMetricsRecorder transferMetricsRecorder;
 
     public TransferResponse transfer(TransferRequest request) {
         validateRequest(request);
+        transferMetricsRecorder.recordAttempt();
 
+        long startNanos = System.nanoTime();
+        String outcome = "unknown";
+        ErrorCode errorCode = null;
         try {
-            return transferProcessor.process(request);
+            TransferProcessingResult result = transferProcessor.process(request);
+            if (result.outcome() == TransferOutcome.REPLAY) {
+                outcome = "replay";
+                transferMetricsRecorder.recordReplay();
+            } else {
+                outcome = "success";
+                transferMetricsRecorder.recordSuccess();
+            }
+            return result.response();
         } catch (CustomException e) {
+            errorCode = e.getErrorCode();
             if (shouldRecordFailure(e)) {
-                transferFailureRecorder.recordFailure(request, e.getErrorCode(), e.getMessage());
+                outcome = "failed";
+                if (transferFailureRecorder.recordFailure(request, e.getErrorCode(), e.getMessage())) {
+                    transferMetricsRecorder.recordFailed();
+                }
+            } else if (e.getErrorCode() == ErrorCode.IDEMPOTENCY_CONFLICT) {
+                outcome = "conflict";
+                transferMetricsRecorder.recordConflict();
+            } else {
+                outcome = "error";
             }
             throw e;
+        } finally {
+            transferMetricsRecorder.recordDuration(startNanos, outcome, errorCode);
         }
     }
 

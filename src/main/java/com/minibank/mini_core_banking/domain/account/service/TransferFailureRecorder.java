@@ -21,7 +21,7 @@ public class TransferFailureRecorder {
     private final TransferHistoryRepository transferHistoryRepository;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void recordFailure(TransferRequest request, ErrorCode errorCode, String failureReason) {
+    public boolean recordFailure(TransferRequest request, ErrorCode errorCode, String failureReason) {
         LocalDateTime now = LocalDateTime.now();
 
         try {
@@ -37,8 +37,10 @@ public class TransferFailureRecorder {
                     .transferredAt(now)
                     .completedAt(now)
                     .build());
+            return true;
         } catch (DataIntegrityViolationException ignored) {
             // Another request with the same idempotency key already recorded the outcome.
+            return false;
         }
     }
 
