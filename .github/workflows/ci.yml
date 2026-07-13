@@ -53,7 +53,8 @@ jobs:
           ./gradlew bootRun > bootrun.log 2>&1 &
           echo $! > bootrun.pid
           for i in {1..30}; do
-            if curl -fsS http://localhost:8080/accounts > /dev/null; then
+            if curl -fsS http://localhost:8080/actuator/health/readiness > /dev/null; then
+              curl -fsS http://localhost:8080/actuator/prometheus > /dev/null
               exit 0
             fi
             sleep 2

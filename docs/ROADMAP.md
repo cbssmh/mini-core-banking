@@ -1,8 +1,8 @@
 # Roadmap
 
-Mini Core Banking will use an incremental release strategy for the v2 line.
+Mini Core Banking uses an incremental release strategy for the v2 line.
 
-The goal is to complete a reliable transfer MVP quickly in v2.0, then improve reliability, observability, and platform readiness in later minor releases.
+The goal was to complete a reliable transfer MVP in v2.0, improve failure traceability in v2.1, and finish the project with local operational observability in v2.2.
 
 # Release Roadmap
 
@@ -10,8 +10,7 @@ The goal is to complete a reliable transfer MVP quickly in v2.0, then improve re
 | --- | --- | --- | --- |
 | v2.0 | Reliable Transfer MVP | PostgreSQL, Flyway, Account, Transfer, transaction boundary, pessimistic lock, lock ordering, idempotency, Testcontainers, Docker Compose, GitHub Actions, runtime verification | Establish the smallest production-oriented transfer service that can be tested and operated with confidence. |
 | v2.1 | Reliability Upgrade | FAILED persistence, error code, audit metadata, request ID, reconciliation helper | Improve failure traceability, operational diagnosis, and support workflows after the MVP is stable. |
-| v2.2 | Observability | Actuator, Micrometer, Prometheus, Grafana, metrics, health, readiness | Make the service measurable and easier to operate under real runtime conditions. |
-| v2.3 | Platform | Docker optimization, multi-stage build, non-root runtime, CI improvements, runtime optimization | Improve deployment quality, runtime efficiency, and delivery pipeline reliability. |
+| v2.2 | Observability & Final Release | Actuator, Micrometer, Prometheus, Grafana, metrics, health, readiness, final documentation | Make the service measurable and finish the Mini Core Banking project. |
 
 # v2.0 Reliable Transfer MVP
 
@@ -81,46 +80,31 @@ Request ID traces a single HTTP request. Idempotency key protects a single busin
 
 ## Goal
 
-Make the service observable through health checks, metrics, and operational dashboards.
+Make the service observable through health checks, metrics, operational dashboards, and runtime verification.
 
 ## Main Features
 
 | Area | Scope |
 | --- | --- |
 | Runtime Management | Actuator |
-| Metrics | Micrometer |
+| Metrics | Micrometer, transfer counters, transfer duration timer |
 | Metrics Backend | Prometheus |
-| Dashboard | Grafana |
-| Signals | Metrics, Health, Readiness |
+| Dashboard | Grafana provisioned dashboard |
+| Signals | Health, Liveness, Readiness, JVM, HTTP, HikariCP, Transfer metrics |
+| Finalization | README, release plan, final checklist |
 
 ## Why
 
 Reliable systems require runtime visibility. v2.2 adds operational signals without changing core transfer behavior.
 
-# v2.3 Platform
-
-## Goal
-
-Improve platform quality and runtime efficiency for repeatable delivery.
-
-## Main Features
-
-| Area | Scope |
-| --- | --- |
-| Container | Docker optimization |
-| Build | Multi-stage build |
-| Security | Non-root runtime |
-| CI | CI improvements |
-| Runtime | Runtime optimization |
-
-## Why
-
-After reliability and observability are in place, the service should become easier to package, run, and evolve in a controlled delivery environment.
+v2.2 is the final planned version of Mini Core Banking.
 
 ## Future Work
 
-The following items are not part of v2.3 and remain future work:
+The following items are not part of this project and remain separate project topics:
 
 - Kubernetes
 - Terraform
 - OpenTelemetry
+- distributed tracing
+- production deployment hardening
