@@ -16,7 +16,20 @@ Manage transfer history with explicit `SUCCESS` and `FAILED` statuses.
 
 `FAILED` represents a transfer attempt that did not complete successfully.
 
-In v2, failed transfer persistence is a target requirement. The system should retain failed transfer attempts with enough information to support audit and diagnosis.
+In v2.1, failed transfer persistence is implemented with a separate failure-recording transaction.
+
+The main transfer transaction creates a `PENDING` row while it attempts the business operation. If account locking, account existence validation, balance validation, debit, or credit fails, the main transaction rolls back. This rollback also removes the in-transaction `PENDING` row, which is correct because account state must not be partially committed.
+
+After that rollback, the application records a `FAILED` row through a separate Spring bean using `REQUIRES_NEW`. This keeps failure audit evidence without committing any account balance changes from the failed transfer.
+
+Request-level validation failures, such as missing account IDs, invalid amount, missing idempotency key, or self-transfer, are rejected before the business transfer attempt and do not create transfer history rows. Business failures after a valid transfer attempt begins, such as missing account records or insufficient balance, are persisted as `FAILED`.
+
+`request_id` and `idempotency_key` have different responsibilities:
+
+- `request_id` traces one HTTP request across response headers, error response bodies, and transfer history.
+- `idempotency_key` identifies one business transfer request and prevents duplicate debit and credit execution.
+
+When an idempotency key already has a stored result, the same request returns that existing result. This includes a stored `FAILED` result. Reusing the same key with different transfer details is an idempotency conflict.
 
 # Consequences
 
@@ -27,3 +40,5 @@ Failure records improve observability and reduce ambiguity during incident analy
 The application service must carefully record failure outcomes without violating transaction consistency.
 
 Failure persistence may require separate transaction handling when the main transfer transaction rolls back.
+
+The history table no longer enforces account foreign keys because failed attempts may reference an account ID that does not exist. Account existence remains a business validation responsibility in the transfer transaction.

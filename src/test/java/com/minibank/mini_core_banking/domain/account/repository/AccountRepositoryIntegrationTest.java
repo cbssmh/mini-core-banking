@@ -103,17 +103,24 @@ class AccountRepositoryIntegrationTest {
     }
 
     @Test
-    void enforcesTransferHistoryForeignKeys() {
-        TransferHistory invalid = TransferHistory.builder()
+    void savesFailedTransferHistoryForMissingAccounts() {
+        TransferHistory failed = TransferHistory.builder()
                 .fromAccountId(999_001L)
                 .toAccountId(999_002L)
                 .amount(5_000L)
-                .status(TransferStatus.SUCCESS)
+                .status(TransferStatus.FAILED)
+                .requestId("req-missing-account")
+                .errorCode("ACCOUNT_NOT_FOUND")
+                .failureReason("계좌를 찾을 수 없습니다.")
                 .transferredAt(LocalDateTime.now())
+                .completedAt(LocalDateTime.now())
                 .build();
 
-        assertThatThrownBy(() -> transferHistoryRepository.saveAndFlush(invalid))
-                .isInstanceOf(DataIntegrityViolationException.class);
+        TransferHistory saved = transferHistoryRepository.saveAndFlush(failed);
+
+        assertThat(saved.getId()).isNotNull();
+        assertThat(saved.getStatus()).isEqualTo(TransferStatus.FAILED);
+        assertThat(saved.getErrorCode()).isEqualTo("ACCOUNT_NOT_FOUND");
     }
 
     private Account saveAccount(String accountNumber, String ownerName, Long balance) {
