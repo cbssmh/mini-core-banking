@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: mini-core-banking-v2-postgres
+    environment:
+      POSTGRES_DB: minibank
+      POSTGRES_USER: minibank
+      POSTGRES_PASSWORD: minibank
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - mini-core-banking
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U minibank -d minibank"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  app:
+    image: eclipse-temurin:21-jre
+    container_name: mini-core-banking-v2-app
+    working_dir: /workspace
+    command: ["java", "-jar", "build/libs/mini-core-banking-0.0.1-SNAPSHOT.jar"]
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/minibank
+      DB_USERNAME: minibank
+      DB_PASSWORD: minibank
+      DB_DRIVER: org.postgresql.Driver
+      JPA_DDL_AUTO: none
+      FLYWAY_ENABLED: "true"
+      SERVER_PORT: 8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/workspace:ro
+    networks:
+      - mini-core-banking
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "grep -q ':1F90' /proc/net/tcp /proc/net/tcp6"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+volumes:
+  postgres-data:
+
+networks:
+  mini-core-banking:
+    driver: bridge
