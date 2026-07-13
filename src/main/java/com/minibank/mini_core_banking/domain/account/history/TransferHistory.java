@@ -34,6 +34,9 @@ public class TransferHistory {
     @Column(nullable = false)
     private Long amount;
 
+    @Column(name = "idempotency_key", length = 128)
+    private String idempotencyKey;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private TransferStatus status;
