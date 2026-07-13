@@ -1,17 +1,22 @@
 spring:
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/minibank}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:}
-    driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/minibank}
+    username: ${DB_USERNAME:minibank}
+    password: ${DB_PASSWORD:minibank}
+    driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
 
   jpa:
     hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:update}
-    show-sql: ${JPA_SHOW_SQL:true}
+      ddl-auto: ${JPA_DDL_AUTO:none}
+    show-sql: ${JPA_SHOW_SQL:false}
     properties:
       hibernate:
-        format_sql: ${JPA_FORMAT_SQL:true}
+        format_sql: ${JPA_FORMAT_SQL:false}
+
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    locations: ${FLYWAY_LOCATIONS:classpath:db/migration}
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:false}
 
 server:
   port: ${SERVER_PORT:8080}
