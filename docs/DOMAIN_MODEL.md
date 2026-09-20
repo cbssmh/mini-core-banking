@@ -1,33 +1,21 @@
-# Domain Model
+# Implemented domain model
 
-Mini Core Banking v2 focuses on account balance management and reliable transfer recording.
+- Account: mutable JPA entity containing identity, owner and integer balance.
+  Opening balances may be supplied at creation. Balances are nonnegative signed
+  64-bit integers; V4 adds a database CHECK. The entity has setters, not domain
+  deposit/withdraw operations.
+- TransferHistory: one retained result per non-null idempotency key. The processor
+  inserts PENDING and commits SUCCESS on success or FAILED for expected business
+  rejection before any balance mutation. Infrastructure errors roll back the row. Request IDs identify the original request,
+  not every replay. Foreign keys were removed in V3 to represent missing accounts.
+- TransferRequest: distinct source/destination, positive integer amount and nonblank
+  key. HTTP monetary JSON rejects floating-point tokens. A Money value object and
+  currencies are not implemented.
 
-# Aggregate
+TransferProcessor coordinates two account rows and history in a transaction.
+Application validation and checked arithmetic express API/domain behavior; the
+balance CHECK protects persisted data against writes outside that path. Neither
+is a substitute for a ledger or for auditing arbitrary database writes.
 
-| Aggregate | Responsibility |
-| --- | --- |
-| Account | Owns account identity and balance. Protects balance invariants. Supports deposit and withdraw operations. Acts as the main consistency boundary for account state. |
-
-# Entity
-
-| Entity | Responsibility |
-| --- | --- |
-| TransferHistory | Records the result of a transfer attempt. Stores source account, target account, amount, status, failure reason when applicable, and timestamps. Supports auditability and operational diagnosis. |
-
-# Value Object
-
-| Value Object | Responsibility |
-| --- | --- |
-| Money | Represents monetary amount and currency-safe arithmetic. Prevents invalid values and centralizes amount-related rules. |
-
-Money is proposed as a future extension point.
-
-In v2, Money will not be implemented. Monetary values may continue to use the existing representation until the model requires multi-currency support, stricter arithmetic rules, or richer monetary validation.
-
-# Model Notes
-
-Account is the aggregate for balance consistency.
-
-TransferHistory is modeled separately because it records the transfer attempt outcome rather than owning account balance behavior.
-
-The transfer use case coordinates multiple Account instances and records TransferHistory within a reliable transaction strategy.
+See [the integrity case study](integrity-hardening.md) for the invariants, reproduced
+failure race, correction, final PostgreSQL regression evidence, and limitations.

@@ -23,8 +23,7 @@ This project is a learning system, not a production banking platform.
 | --- | --- |
 | Controller | Exposes account, transfer, history, and reconciliation APIs. |
 | Application Service | Validates transfer requests, coordinates transaction processing, failure recording, idempotency outcomes, and metrics. |
-| Transfer Processor | Owns the main transfer transaction, account locking, balance movement, and SUCCESS history. |
-| Failure Recorder | Persists FAILED transfer history in a separate `REQUIRES_NEW` transaction. |
+| Transfer Processor | Owns account locking, atomic balance/SUCCESS history, and expected FAILED outcomes under the same key lock. |
 | Repository | Provides JPA persistence and PostgreSQL locking access. |
 | Database | Stores accounts and transfer history through Flyway-managed schema. |
 | Observability | Exposes health and metrics to Prometheus and Grafana. |
@@ -32,13 +31,15 @@ This project is a learning system, not a production banking platform.
 ## Reliability Design
 
 - PostgreSQL is the runtime database.
-- Flyway owns schema migration V1 through V3.
+- Flyway owns schema migrations V1 through V4. V4 rejects negative balances; it deliberately fails if existing data violates the constraint.
 - Hibernate schema auto-update is disabled.
 - Transfers use an explicit transaction boundary.
+- Checked credit arithmetic rejects overflow before balance mutation.
+- Monetary JSON rejects floating-point tokens instead of truncating them into integer amounts.
 - Account rows are locked pessimistically.
 - Account ids are ordered before locking to reduce avoidable deadlocks.
-- Idempotency prevents duplicate debit and credit execution.
-- Failed business transfer attempts are persisted as `FAILED`.
+- Outcome replay uses transaction-scoped key locks and a unique key. Expected business rejections commit FAILED before releasing the key lock; the application raises the initial business error after commit.
+- Infrastructure errors roll back and are not durably audited. See the integrity report for the latest verification boundary.
 - Request validation failures do not create transfer history rows.
 - `X-Request-ID` traces a single HTTP request.
 - `idempotencyKey` identifies one business transfer request.
@@ -88,7 +89,7 @@ Actuator endpoints exposed:
 - `/actuator/health/readiness`
 - `/actuator/prometheus`
 
-Liveness indicates that the application process is alive. Readiness includes dependency health such as database connectivity and is used by Docker Compose for the app healthcheck.
+Liveness reflects application liveness state. The default readiness group contains `readinessState`; it does **not** include the database indicator. Docker Compose uses that readiness endpoint, so an UP result does not prove database connectivity. General `/actuator/health` can include the auto-configured database indicator. A real database-outage probe was not executed in this hardening pass.
 
 ## Prometheus
 
@@ -147,6 +148,15 @@ docker compose down
 ```
 
 Volumes are not removed by default.
+
+## History and Retry Semantics
+
+`/transfers/reconciliation/failed` filters stored FAILED rows. It does not compare
+balances against a ledger, repair discrepancies, or implement financial reconciliation.
+The first recorded business failure returns a 4xx error; an identical retry returns
+HTTP 200 with `status=FAILED`. Clients must inspect the status. Validation failures,
+idempotency conflicts, infrastructure failures and every individual retry are not
+all represented as separate audit rows. The global idempotency key has no expiry.
 
 ## Testing
 

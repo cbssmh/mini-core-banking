@@ -42,13 +42,14 @@ docker compose down
 
 - PostgreSQL is healthy.
 - Application is healthy through readiness.
-- Flyway V1, V2, and V3 are applied.
+- Flyway V1 through V4 are applied. V4 deliberately fails if existing data contains negative balances; such data must be investigated, not silently corrected.
 - Prometheus scrapes the app through the Compose service name `app`.
 - Grafana provisions the Prometheus datasource.
 - Grafana loads the Mini Core Banking dashboard.
 - Transfer success, failure, replay, and conflict metrics are emitted.
 - JVM, HTTP server, and HikariCP datasource metrics such as `jdbc_connections_active` are exposed.
-- Core transfer behavior remains unchanged.
+- Checked overflow and strict monetary JSON regressions pass.
+- Final verification recorded 54/54 passing tests with no failures, errors, or skips, including all 32 PostgreSQL-backed cases and the replacement failed-outcome regressions. The focused PostgreSQL gate is closed; unrelated release checks above are not certified.
 
 # Final Scope Check
 
