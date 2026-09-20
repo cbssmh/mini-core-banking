@@ -3,6 +3,7 @@ package com.minibank.mini_core_banking.global;
 import com.minibank.mini_core_banking.domain.account.exception.ErrorCode;
 import com.minibank.mini_core_banking.domain.account.exception.CustomException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -23,6 +24,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<?> handleMethodArgumentNotValidException(MethodArgumentNotValidException e) {
         return ResponseEntity
                 .badRequest()
+                .body(errorResponse(ErrorCode.INVALID_REQUEST, "Invalid request"));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<?> handleUnreadableRequest(HttpMessageNotReadableException e) {
+        return ResponseEntity.badRequest()
                 .body(errorResponse(ErrorCode.INVALID_REQUEST, "Invalid request"));
     }
 

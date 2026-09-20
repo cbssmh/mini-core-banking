@@ -14,7 +14,6 @@ import java.util.List;
 public class TransferApplicationService {
 
     private final TransferProcessor transferProcessor;
-    private final TransferFailureRecorder transferFailureRecorder;
     private final TransferMetricsRecorder transferMetricsRecorder;
 
     public TransferResponse transfer(TransferRequest request) {
@@ -24,24 +23,23 @@ public class TransferApplicationService {
         long startNanos = System.nanoTime();
         String outcome = "unknown";
         ErrorCode errorCode = null;
+        TransferProcessingResult result;
         try {
-            TransferProcessingResult result = transferProcessor.process(request);
+            result = transferProcessor.process(request);
             if (result.outcome() == TransferOutcome.REPLAY) {
                 outcome = "replay";
                 transferMetricsRecorder.recordReplay();
+            } else if (result.outcome() == TransferOutcome.FAILED) {
+                outcome = "failed";
+                errorCode = result.errorCode();
+                transferMetricsRecorder.recordFailed();
             } else {
                 outcome = "success";
                 transferMetricsRecorder.recordSuccess();
             }
-            return result.response();
         } catch (CustomException e) {
             errorCode = e.getErrorCode();
-            if (shouldRecordFailure(e)) {
-                outcome = "failed";
-                if (transferFailureRecorder.recordFailure(request, e.getErrorCode(), e.getMessage())) {
-                    transferMetricsRecorder.recordFailed();
-                }
-            } else if (e.getErrorCode() == ErrorCode.IDEMPOTENCY_CONFLICT) {
+            if (e.getErrorCode() == ErrorCode.IDEMPOTENCY_CONFLICT) {
                 outcome = "conflict";
                 transferMetricsRecorder.recordConflict();
             } else {
@@ -51,6 +49,11 @@ public class TransferApplicationService {
         } finally {
             transferMetricsRecorder.recordDuration(startNanos, outcome, errorCode);
         }
+        // process() has returned through the transactional proxy: FAILED is durable.
+        if (result.outcome() == TransferOutcome.FAILED) {
+            throw new CustomException(result.errorCode(), result.failureReason());
+        }
+        return result.response();
     }
 
     private void validateRequest(TransferRequest request) {
@@ -69,12 +72,6 @@ public class TransferApplicationService {
         if (request.getFromAccountId().equals(request.getToAccountId())) {
             throw new CustomException(ErrorCode.SELF_TRANSFER);
         }
-    }
-
-    private boolean shouldRecordFailure(CustomException e) {
-        return e.getErrorCode() == ErrorCode.ACCOUNT_NOT_FOUND
-                || e.getErrorCode() == ErrorCode.INSUFFICIENT_BALANCE
-                || e.getErrorCode() == ErrorCode.TRANSFER_FAILED;
     }
 
     List<Long> orderedAccountIds(Long firstAccountId, Long secondAccountId) {

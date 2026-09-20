@@ -16,7 +16,7 @@ Expose only the required web endpoints:
 - `info`
 - `prometheus`
 
-Enable liveness and readiness probes. Liveness represents whether the application process is alive. Readiness represents whether the application is ready to serve traffic and includes dependency health such as PostgreSQL.
+Enable liveness and readiness probes. Liveness represents whether the application process is alive. The default readiness group contains readinessState only; it does not include PostgreSQL. The Compose readiness healthcheck therefore does not establish database dependency health. General health can include the database indicator. No database-outage test was executed in the integrity pass.
 
 Use Prometheus and Grafana in Docker Compose for local verification. Prometheus scrapes the application through the Compose service name `app` at `/actuator/prometheus`. Grafana provisions a Prometheus datasource and a compact operational dashboard.
 
@@ -26,7 +26,7 @@ Custom transfer metrics are recorded explicitly in the transfer application serv
 
 - `bank.transfer.attempts`: increments after request-level validation passes and the transfer application flow begins.
 - `bank.transfer.success`: increments after the transfer processor returns a new successful transfer result.
-- `bank.transfer.failed`: increments after the separate failure recorder commits a FAILED history row.
+- `bank.transfer.failed`: increments after the processor proxy returns a committed new FAILED outcome. Replays do not increment this counter.
 - `bank.transfer.idempotency.replay`: increments when an existing SUCCESS or FAILED result is returned for the same idempotency key and payload.
 - `bank.transfer.idempotency.conflict`: increments when the same idempotency key is reused with different transfer details.
 - `bank.transfer.duration`: records success, failed, replay, and conflict paths.

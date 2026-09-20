@@ -62,17 +62,39 @@ public class TransferProcessor {
         Account from = findLockedAccount(lockedAccounts, request.getFromAccountId());
         Account to = findLockedAccount(lockedAccounts, request.getToAccountId());
 
+        if (from == null || to == null) {
+            return reject(history, ErrorCode.ACCOUNT_NOT_FOUND, ErrorCode.ACCOUNT_NOT_FOUND.getDefaultMessage());
+        }
+
         if (from.getBalance() < request.getAmount()) {
-            throw new CustomException(ErrorCode.INSUFFICIENT_BALANCE);
+            return reject(history, ErrorCode.INSUFFICIENT_BALANCE, ErrorCode.INSUFFICIENT_BALANCE.getDefaultMessage());
+        }
+
+        final long creditedBalance;
+        try {
+            creditedBalance = Math.addExact(to.getBalance(), request.getAmount());
+        } catch (ArithmeticException e) {
+            return reject(history, ErrorCode.TRANSFER_FAILED,
+                    "Destination balance exceeds the supported monetary range");
         }
 
         from.setBalance(from.getBalance() - request.getAmount());
-        to.setBalance(to.getBalance() + request.getAmount());
+        to.setBalance(creditedBalance);
 
         history.setStatus(TransferStatus.SUCCESS);
         history.setCompletedAt(LocalDateTime.now());
 
         return new TransferProcessingResult(TransferResponse.from(history), TransferOutcome.SUCCESS);
+    }
+
+    // Only expected rejections before balance mutation reach here. Returning lets the
+    // proxy commit FAILED while still holding the key lock; the caller then raises 4xx.
+    private TransferProcessingResult reject(TransferHistory history, ErrorCode code, String reason) {
+        history.setStatus(TransferStatus.FAILED);
+        history.setErrorCode(code.name());
+        history.setFailureReason(reason);
+        history.setCompletedAt(LocalDateTime.now());
+        return new TransferProcessingResult(TransferResponse.from(history), TransferOutcome.FAILED, code, reason);
     }
 
     List<Account> lockAccountsInDeterministicOrder(Long firstAccountId, Long secondAccountId) {
@@ -83,7 +105,7 @@ public class TransferProcessor {
         return accounts.stream()
                 .filter(account -> account.getId().equals(accountId))
                 .findFirst()
-                .orElseThrow(() -> new CustomException(ErrorCode.ACCOUNT_NOT_FOUND));
+                .orElse(null);
     }
 
     private boolean isSameRequest(TransferHistory existing, TransferRequest request) {

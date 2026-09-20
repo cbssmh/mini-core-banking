@@ -1,4 +1,8 @@
 spring:
+  jackson:
+    deserialization:
+      accept-float-as-int: false
+
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/minibank}
     username: ${DB_USERNAME:minibank}

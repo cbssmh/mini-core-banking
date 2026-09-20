@@ -16,11 +16,17 @@ Manage transfer history with explicit `SUCCESS` and `FAILED` statuses.
 
 `FAILED` represents a transfer attempt that did not complete successfully.
 
-In v2.1, failed transfer persistence is implemented with a separate failure-recording transaction.
+The processor inserts PENDING, then commits either SUCCESS with balance changes or
+FAILED for an expected business rejection before balance mutation. The same
+transaction-scoped advisory lock covers lookup through outcome commit. The
+application raises the first rejection as a business error only after commit.
+Unexpected database errors roll back balances and PENDING and retain no outcome.
 
-The main transfer transaction creates a `PENDING` row while it attempts the business operation. If account locking, account existence validation, balance validation, debit, or credit fails, the main transaction rolls back. This rollback also removes the in-transaction `PENDING` row, which is correct because account state must not be partially committed.
-
-After that rollback, the application records a `FAILED` row through a separate Spring bean using `REQUIRES_NEW`. This keeps failure audit evidence without committing any account balance changes from the failed transfer.
+This supersedes the v2.1 separate REQUIRES_NEW recorder: supplied PostgreSQL probes
+reproduced a different payload claiming the key after rollback, followed by an
+UnexpectedRollbackException from the recorder's duplicate insert. Catching the
+integrity exception did not clear rollback-only state. No unrelated transaction
+mechanisms were changed. Final PostgreSQL regression execution passed; see the evidence report.
 
 Request-level validation failures, such as missing account IDs, invalid amount, missing idempotency key, or self-transfer, are rejected before the business transfer attempt and do not create transfer history rows. Business failures after a valid transfer attempt begins, such as missing account records or insufficient balance, are persisted as `FAILED`.
 
@@ -39,6 +45,16 @@ Failure records improve observability and reduce ambiguity during incident analy
 
 The application service must carefully record failure outcomes without violating transaction consistency.
 
-Failure persistence may require separate transaction handling when the main transfer transaction rolls back.
+Infrastructure failure auditing remains outside the implemented guarantee.
 
 The history table no longer enforces account foreign keys because failed attempts may reference an account ID that does not exist. Account existence remains a business validation responsibility in the transfer transaction.
+
+# Integrity qualification
+
+The original defect probes established the unsafe interleaving. Replacement
+regressions in TransferFailureOutcomeIntegrationTest require same-payload FAILED
+replay and different-payload conflict under an observed advisory-lock wait.
+The first business failure returns an error; a stored FAILED replay returns a
+normal response with FAILED status. The endpoint named reconciliation only lists
+FAILED rows; it performs no accounting comparison. See
+[the integrity case study](../integrity-hardening.md).
