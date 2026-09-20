@@ -44,6 +44,19 @@ This project is a learning system, not a production banking platform.
 - `X-Request-ID` traces a single HTTP request.
 - `idempotencyKey` identifies one business transfer request.
 
+## Integrity Hardening
+
+Integrity testing focused on transaction boundaries rather than CRUD coverage.
+PostgreSQL/Testcontainers scenarios reproduce and regress two corrected defects:
+failed outcomes once lost idempotency-key ownership before recording, and a caught
+duplicate insert could still surface as `UnexpectedRollbackException`. The suite
+also exercises competing withdrawals, opposite-direction transfers under forced
+contention, checked monetary bounds, the database nonnegative-balance constraint,
+and rollback after an injected persistence error. The final run recorded 54/54
+passing tests with no failures, errors, or skips; 32 cases were PostgreSQL-backed.
+See [Transfer Integrity Hardening](docs/integrity-hardening.md) for the decisions,
+evidence, and explicit limitations.
+
 ## Observability Design
 
 v2.2 adds:
@@ -166,7 +179,7 @@ Run:
 ./gradlew clean test
 ```
 
-Coverage includes:
+The suite contains tests for (execution status is in the integrity report):
 
 - transfer success and rollback behavior
 - failed transfer persistence
